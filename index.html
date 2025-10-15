@@ -42,8 +42,8 @@ const config = {
 const msalInstance = new msal.PublicClientApplication(config);
 const scopes = ["User.Read", "Sites.ReadWrite.All"];
 let accessToken = null;
-let siteId = null;
-let listId = null;
+let siteId = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
+let listId = "Silent Bus Admin List";
 
 // Sign in
 async function signIn() {
@@ -132,4 +132,5 @@ async function updateListItem(bus) {
 </script>
 </body>
 </html>
+
 
