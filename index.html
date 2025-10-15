@@ -31,54 +31,133 @@
   <audio id="ding" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 
 <script>
-const config = {
-  auth: {
-    clientId: "9fa63e7d-529b-4b31-aeba-240de53122e9",
-    authority: "https://login.microsoftonline.com/9c6c3caa-8f3d-4f3c-98f7-e4feea479b7d",
-    redirectUri: "https://aaleventhal-lev.github.io/silent-bus-dashboard/"
-  }
-};
+<script>
+  // 1️⃣ MSAL configuration
+  const msalConfig = {
+    auth: {
+      clientId: "9fa63e7d-529b-4b31-aeba-240de53122e9",
+      authority: "https://login.microsoftonline.com/common",
+      redirectUri: "https://aaleventhal-lev.github.io/silent-bus-dashboard/"
+    },
+    cache: {
+      cacheLocation: "localStorage",
+      storeAuthStateInCookie: false
+    }
+  };
 
-const msalInstance = new msal.PublicClientApplication(config);
-const scopes = ["User.Read", "Sites.ReadWrite.All"];
-let accessToken = null;
+  // 2️⃣ Create MSAL instance
+  const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+  // 3️⃣ Restore previous login if exists
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    msalInstance.setActiveAccount(accounts[0]);
+    console.log("✅ Restored account:", accounts[0]);
+  } else {
+    console.log("ℹ️ No account found, please sign in");
+  }
+
+  let accessToken = null;
 let siteId = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
 let listId = "Silent Bus Admin List";
 
 // Sign in
-async function signIn() {
-  try {
-    const loginResponse = await msalInstance.loginPopup({ scopes });
-    document.getElementById("login").style.display = "none";
-    document.getElementById("board").style.display = "flex";
-    const tokenResponse = await msalInstance.acquireTokenSilent({ scopes });
-    accessToken = tokenResponse.accessToken;
-    await loadListData();
-  } catch (err) {
-    console.error(err);
-    alert("Login failed.");
+<script>
+  async function signIn() {
+    try {
+      // 🔹 Prompt the user to sign in
+      const loginResponse = await msalInstance.loginPopup({
+        scopes: ["User.Read", "Sites.Read.All"]
+      });
+      console.log("✅ Login successful:", loginResponse.account);
+
+      // 🔹 Store the signed-in account
+      msalInstance.setActiveAccount(loginResponse.account);
+
+      // 🔹 Retrieve the active account
+      const account = msalInstance.getActiveAccount();
+      if (!account) throw new Error("No active account found after login");
+
+      // 🔹 Acquire token silently
+      const tokenResponse = await msalInstance.acquireTokenSilent({
+        scopes: ["User.Read", "Sites.Read.All"],
+        account: account
+      });
+
+      accessToken = tokenResponse.accessToken;
+      console.log("✅ Token acquired successfully");
+
+      // 🔹 Now load your SharePoint data
+      loadListData();
+
+    } catch (error) {
+      console.error("❌ Login error:", error);
+
+      // fallback: interactive login if silent token fails
+      if (error.errorCode === "no_account_error" || error.errorCode === "interaction_required") {
+        console.log("⚠️ Falling back to interactive login");
+        const loginResponse = await msalInstance.loginPopup({
+          scopes: ["User.Read", "Sites.Read.All"]
+        });
+        msalInstance.setActiveAccount(loginResponse.account);
+
+        const tokenResponse = await msalInstance.acquireTokenSilent({
+          scopes: ["User.Read", "Sites.Read.All"],
+          account: loginResponse.account
+        });
+        accessToken = tokenResponse.accessToken;
+        loadListData();
+      }
+    }
   }
-}
+  
+  // Load buses from your SharePoint list
+  async function loadListData() {
+    if (!accessToken) {
+      console.error("❌ No access token, cannot load data.");
+      return;
+    }
 
-// Load buses from Microsoft List
-async function loadListData() {
-  const siteUrl = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub?spStartSource=spappbar#"; // Change this
-  const listName = "Silent Bus"; // exact list name
-  const siteRes = await graph(`/sites/${siteUrl.replace("https://", "")}`);
-  siteId = siteRes.id;
-  const listsRes = await graph(`/sites/${siteId}/lists`);
-  const list = listsRes.value.find(l => l.name === listName);
-  listId = list.id;
+    // ✅ Your site URL
+    const siteUrl = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
 
-  const itemsRes = await graph(`/sites/${siteId}/lists/${listId}/items?expand=fields`);
-  const buses = itemsRes.value.map(i => ({
-    id: i.id,
-    name: i.fields.BusName,
-    status: i.fields.Status
-  }));
+    // ✅ The *exact* list name as it appears in SharePoint
+    const listName = "Silent Bus";  
 
-  render(buses);
-}
+    // ✅ Build SharePoint REST API endpoint
+    const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id,Title,BusName,Status`;
+
+    try {
+      // Fetch list items
+      const response = await fetch(endpoint, {
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Accept": "application/json;odata=nometadata"
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`SharePoint API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("📋 SharePoint data:", data);
+
+      // Map data to your bus objects
+      const buses = data.value.map(item => ({
+        id: item.Id,
+        name: item.BusName || item.Title,
+        status: item.Status || "Not Here"
+      }));
+
+      // Now render your dashboard
+      render(buses);
+
+    } catch (error) {
+      console.error("⚠️ Error loading list data:", error);
+      alert("Could not load bus data. Check console for details.");
+    }
+  }
 
 // Graph helper
 async function graph(endpoint, method = "GET", body = null) {
@@ -132,5 +211,6 @@ async function updateListItem(bus) {
 </script>
 </body>
 </html>
+
 
 
