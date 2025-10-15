@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Silent Bus Dashboard (Live)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://alcdn.msauth.net/browser/2.37.0/js/msal-browser.min.js"></script>
+  <style>
+    body { font-family: system-ui, "Segoe UI", Arial; background:#f1f5f9; margin:20px; }
+    h1 { text-align:center; }
+    #board { display:flex; gap:16px; margin-top:12px; }
+    .column { flex:1; background:white; border-radius:10px; padding:12px; min-height:400px; box-shadow:0 1px 4px rgba(0,0,0,0.08); }
+    .column h2 { text-align:center; }
+    .bus { background:#e6f0ff; margin:6px; padding:10px; border-radius:8px; cursor:grab; }
+    .bus.dragging { opacity:0.5; }
+    button { padding:8px 16px; border:none; border-radius:6px; background:#2563eb; color:white; cursor:pointer; }
+    button:hover { background:#1e40af; }
+    #login { display:flex; justify-content:center; margin:20px; }
+  </style>
+</head>
+<body>
+  <h1>Silent Bus Dashboard — Live</h1>
+  <div id="login"><button onclick="signIn()">Sign in with Microsoft</button></div>
+
+  <div id="board" style="display:none;">
+    <div class="column" id="Not Here"><h2>🚍 Not Here</h2></div>
+    <div class="column" id="Here"><h2>✅ Here</h2></div>
+    <div class="column" id="Gone"><h2>🏁 Gone</h2></div>
+  </div>
+
+  <audio id="ding" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+
+<script>
+const config = {
+  auth: {
+    clientId: "9fa63e7d-529b-4b31-aeba-240de53122e9",
+    authority: "https://login.microsoftonline.com/9c6c3caa-8f3d-4f3c-98f7-e4feea479b7d",
+    redirectUri: "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub/SiteAssets/silentbushtml.html"
+  }
+};
+
+const msalInstance = new msal.PublicClientApplication(config);
+const scopes = ["User.Read", "Sites.ReadWrite.All"];
+let accessToken = null;
+let siteId = null;
+let listId = null;
+
+// Sign in
+async function signIn() {
+  try {
+    const loginResponse = await msalInstance.loginPopup({ scopes });
+    document.getElementById("login").style.display = "none";
+    document.getElementById("board").style.display = "flex";
+    const tokenResponse = await msalInstance.acquireTokenSilent({ scopes });
+    accessToken = tokenResponse.accessToken;
+    await loadListData();
+  } catch (err) {
+    console.error(err);
+    alert("Login failed.");
+  }
+}
+
+// Load buses from Microsoft List
+async function loadListData() {
+  const siteUrl = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub?spStartSource=spappbar#"; // Change this
+  const listName = "Silent Bus"; // exact list name
+  const siteRes = await graph(`/sites/${siteUrl.replace("https://", "")}`);
+  siteId = siteRes.id;
+  const listsRes = await graph(`/sites/${siteId}/lists`);
+  const list = listsRes.value.find(l => l.name === listName);
+  listId = list.id;
+
+  const itemsRes = await graph(`/sites/${siteId}/lists/${listId}/items?expand=fields`);
+  const buses = itemsRes.value.map(i => ({
+    id: i.id,
+    name: i.fields.BusName,
+    status: i.fields.Status
+  }));
+
+  render(buses);
+}
+
+// Graph helper
+async function graph(endpoint, method = "GET", body = null) {
+  const headers = { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
+  const response = await fetch(`https://graph.microsoft.com/v1.0${endpoint}`, { method, headers, body: body ? JSON.stringify(body) : null });
+  return await response.json();
+}
+
+// Render board
+function render(buses) {
+  ["Not Here","Here","Gone"].forEach(status => {
+    const col = document.getElementById(status);
+    col.querySelectorAll(".bus").forEach(b => b.remove());
+    buses.filter(b => b.status === status).forEach(bus => {
+      const div = document.createElement("div");
+      div.className = "bus";
+      div.textContent = bus.name;
+      div.draggable = true;
+      div.dataset.id = bus.id;
+      div.addEventListener("dragstart", e => {
+        e.dataTransfer.setData("text/plain", bus.id);
+        div.classList.add("dragging");
+      });
+      div.addEventListener("dragend", () => div.classList.remove("dragging"));
+      col.appendChild(div);
+    });
+  });
+
+  document.querySelectorAll(".column").forEach(col => {
+    col.ondragover = e => e.preventDefault();
+    col.ondrop = async e => {
+      e.preventDefault();
+      const id = e.dataTransfer.getData("text/plain");
+      const bus = buses.find(b => b.id == id);
+      if (bus.status === col.id) return;
+      bus.status = col.id;
+      render(buses);
+      const ding = document.getElementById("ding");
+      if (col.id === "Here") ding.play().catch(()=>{});
+      await updateListItem(bus);
+    };
+  });
+}
+
+// Update bus in Microsoft List
+async function updateListItem(bus) {
+  await graph(`/sites/${siteId}/lists/${listId}/items/${bus.id}/fields`, "PATCH", {
+    Status: bus.status
+  });
+}
+</script>
+</body>
+</html>
