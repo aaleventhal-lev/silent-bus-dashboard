@@ -45,16 +45,13 @@
     }
   };
 
-  // 2️⃣ Create MSAL instance
   const msalInstance = new msal.PublicClientApplication(msalConfig);
-
-  // 3️⃣ Restore previous login if exists
   const accounts = msalInstance.getAllAccounts();
   if (accounts.length > 0) {
     msalInstance.setActiveAccount(accounts[0]);
     console.log("✅ Restored account:", accounts[0]);
   } else {
-    console.log("ℹ️ No account found, please sign in");
+    console.log("ℹ️ No cached account found");
   }
 
   // Global variables
@@ -75,32 +72,35 @@
       if (!account) throw new Error("No active account found after login");
 
       const tokenResponse = await msalInstance.acquireTokenSilent({
-        scopes: ["User.Read", "Sites.Read.All"],
+        scopes: ["https://thewatsoninstitute.sharepoint.com/.default"],
         account: account
       });
 
       accessToken = tokenResponse.accessToken;
       console.log("✅ Token acquired successfully");
 
-      // Hide login button, show dashboard
       document.getElementById("login").style.display = "none";
       document.getElementById("board").style.display = "flex";
-
-      // Load list data
       await loadListData();
 
     } catch (error) {
       console.error("❌ Login error:", error);
+
+      // Fallback to popup if silent fails
       if (error.errorCode === "no_account_error" || error.errorCode === "interaction_required") {
         const loginResponse = await msalInstance.loginPopup({
-          scopes: ["User.Read", "Sites.Read.All"]
+          scopes: ["https://thewatsoninstitute.sharepoint.com/.default"]
         });
         msalInstance.setActiveAccount(loginResponse.account);
+
         const tokenResponse = await msalInstance.acquireTokenSilent({
-          scopes: ["User.Read", "Sites.Read.All"],
+          scopes: ["https://thewatsoninstitute.sharepoint.com/.default"],
           account: loginResponse.account
         });
+
         accessToken = tokenResponse.accessToken;
+        document.getElementById("login").style.display = "none";
+        document.getElementById("board").style.display = "flex";
         await loadListData();
       }
     }
@@ -171,8 +171,7 @@
         if (bus.status === col.id) return;
         bus.status = col.id;
         render(buses);
-        const ding = document.getElementById("ding");
-        if (col.id === "Here") ding.play().catch(() => {});
+        if (col.id === "Here") document.getElementById("ding").play().catch(()=>{});
         await updateListItem(bus);
       };
     });
@@ -181,7 +180,7 @@
   // 🔹 Update SharePoint item
   async function updateListItem(bus) {
     const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items(${bus.id})`;
-    await fetch(endpoint, {
+    const response = await fetch(endpoint, {
       method: "PATCH",
       headers: {
         "Authorization": `Bearer ${accessToken}`,
@@ -191,8 +190,13 @@
       },
       body: JSON.stringify({ Status: bus.status })
     });
+
+    if (!response.ok) {
+      console.error("⚠️ Update failed:", await response.text());
+    }
   }
   </script>
 </body>
 </html>
+
 
