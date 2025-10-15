@@ -18,6 +18,7 @@
     #login { display:flex; justify-content:center; margin:20px; }
   </style>
 </head>
+
 <body>
   <h1>Silent Bus Dashboard — Live</h1>
   <div id="login"><button onclick="signIn()">Sign in with Microsoft</button></div>
@@ -30,8 +31,7 @@
 
   <audio id="ding" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 
-<script>
-<script>
+  <script>
   // 1️⃣ MSAL configuration
   const msalConfig = {
     auth: {
@@ -57,28 +57,23 @@
     console.log("ℹ️ No account found, please sign in");
   }
 
+  // Global variables
   let accessToken = null;
-let siteId = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
-let listId = "Silent Bus Admin List";
+  const siteUrl = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
+  const listName = "Silent Bus Admin List";
 
-// Sign in
-<script>
+  // 🔹 Sign in and acquire token
   async function signIn() {
     try {
-      // 🔹 Prompt the user to sign in
       const loginResponse = await msalInstance.loginPopup({
         scopes: ["User.Read", "Sites.Read.All"]
       });
       console.log("✅ Login successful:", loginResponse.account);
-
-      // 🔹 Store the signed-in account
       msalInstance.setActiveAccount(loginResponse.account);
 
-      // 🔹 Retrieve the active account
       const account = msalInstance.getActiveAccount();
       if (!account) throw new Error("No active account found after login");
 
-      // 🔹 Acquire token silently
       const tokenResponse = await msalInstance.acquireTokenSilent({
         scopes: ["User.Read", "Sites.Read.All"],
         account: account
@@ -87,48 +82,40 @@ let listId = "Silent Bus Admin List";
       accessToken = tokenResponse.accessToken;
       console.log("✅ Token acquired successfully");
 
-      // 🔹 Now load your SharePoint data
-      loadListData();
+      // Hide login button, show dashboard
+      document.getElementById("login").style.display = "none";
+      document.getElementById("board").style.display = "flex";
+
+      // Load list data
+      await loadListData();
 
     } catch (error) {
       console.error("❌ Login error:", error);
-
-      // fallback: interactive login if silent token fails
       if (error.errorCode === "no_account_error" || error.errorCode === "interaction_required") {
-        console.log("⚠️ Falling back to interactive login");
         const loginResponse = await msalInstance.loginPopup({
           scopes: ["User.Read", "Sites.Read.All"]
         });
         msalInstance.setActiveAccount(loginResponse.account);
-
         const tokenResponse = await msalInstance.acquireTokenSilent({
           scopes: ["User.Read", "Sites.Read.All"],
           account: loginResponse.account
         });
         accessToken = tokenResponse.accessToken;
-        loadListData();
+        await loadListData();
       }
     }
   }
-  
-  // Load buses from your SharePoint list
+
+  // 🔹 Load data from SharePoint list
   async function loadListData() {
     if (!accessToken) {
       console.error("❌ No access token, cannot load data.");
       return;
     }
 
-    // ✅ Your site URL
-    const siteUrl = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
-
-    // ✅ The *exact* list name as it appears in SharePoint
-    const listName = "Silent Bus";  
-
-    // ✅ Build SharePoint REST API endpoint
     const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id,Title,BusName,Status`;
 
     try {
-      // Fetch list items
       const response = await fetch(endpoint, {
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -136,21 +123,17 @@ let listId = "Silent Bus Admin List";
         }
       });
 
-      if (!response.ok) {
-        throw new Error(`SharePoint API error: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`SharePoint API error: ${response.status}`);
 
       const data = await response.json();
       console.log("📋 SharePoint data:", data);
 
-      // Map data to your bus objects
       const buses = data.value.map(item => ({
         id: item.Id,
         name: item.BusName || item.Title,
         status: item.Status || "Not Here"
       }));
 
-      // Now render your dashboard
       render(buses);
 
     } catch (error) {
@@ -159,58 +142,56 @@ let listId = "Silent Bus Admin List";
     }
   }
 
-// Graph helper
-async function graph(endpoint, method = "GET", body = null) {
-  const headers = { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
-  const response = await fetch(`https://graph.microsoft.com/v1.0${endpoint}`, { method, headers, body: body ? JSON.stringify(body) : null });
-  return await response.json();
-}
-
-// Render board
-function render(buses) {
-  ["Not Here","Here","Gone"].forEach(status => {
-    const col = document.getElementById(status);
-    col.querySelectorAll(".bus").forEach(b => b.remove());
-    buses.filter(b => b.status === status).forEach(bus => {
-      const div = document.createElement("div");
-      div.className = "bus";
-      div.textContent = bus.name;
-      div.draggable = true;
-      div.dataset.id = bus.id;
-      div.addEventListener("dragstart", e => {
-        e.dataTransfer.setData("text/plain", bus.id);
-        div.classList.add("dragging");
+  // 🔹 Render dashboard
+  function render(buses) {
+    ["Not Here", "Here", "Gone"].forEach(status => {
+      const col = document.getElementById(status);
+      col.querySelectorAll(".bus").forEach(b => b.remove());
+      buses.filter(b => b.status === status).forEach(bus => {
+        const div = document.createElement("div");
+        div.className = "bus";
+        div.textContent = bus.name;
+        div.draggable = true;
+        div.dataset.id = bus.id;
+        div.addEventListener("dragstart", e => {
+          e.dataTransfer.setData("text/plain", bus.id);
+          div.classList.add("dragging");
+        });
+        div.addEventListener("dragend", () => div.classList.remove("dragging"));
+        col.appendChild(div);
       });
-      div.addEventListener("dragend", () => div.classList.remove("dragging"));
-      col.appendChild(div);
     });
-  });
 
-  document.querySelectorAll(".column").forEach(col => {
-    col.ondragover = e => e.preventDefault();
-    col.ondrop = async e => {
-      e.preventDefault();
-      const id = e.dataTransfer.getData("text/plain");
-      const bus = buses.find(b => b.id == id);
-      if (bus.status === col.id) return;
-      bus.status = col.id;
-      render(buses);
-      const ding = document.getElementById("ding");
-      if (col.id === "Here") ding.play().catch(()=>{});
-      await updateListItem(bus);
-    };
-  });
-}
+    document.querySelectorAll(".column").forEach(col => {
+      col.ondragover = e => e.preventDefault();
+      col.ondrop = async e => {
+        e.preventDefault();
+        const id = e.dataTransfer.getData("text/plain");
+        const bus = buses.find(b => b.id == id);
+        if (bus.status === col.id) return;
+        bus.status = col.id;
+        render(buses);
+        const ding = document.getElementById("ding");
+        if (col.id === "Here") ding.play().catch(() => {});
+        await updateListItem(bus);
+      };
+    });
+  }
 
-// Update bus in Microsoft List
-async function updateListItem(bus) {
-  await graph(`/sites/${siteId}/lists/${listId}/items/${bus.id}/fields`, "PATCH", {
-    Status: bus.status
-  });
-}
-</script>
+  // 🔹 Update SharePoint item
+  async function updateListItem(bus) {
+    const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items(${bus.id})`;
+    await fetch(endpoint, {
+      method: "PATCH",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Accept": "application/json;odata=nometadata",
+        "Content-Type": "application/json;odata=nometadata",
+        "IF-MATCH": "*"
+      },
+      body: JSON.stringify({ Status: bus.status })
+    });
+  }
+  </script>
 </body>
 </html>
-
-
-
