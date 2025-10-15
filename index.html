@@ -113,7 +113,7 @@
       return;
     }
 
-    const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id,Title,BusName,Status`;
+    const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id,Title,Title,Status`;
 
     try {
       const response = await fetch(endpoint, {
@@ -130,7 +130,7 @@
 
       const buses = data.value.map(item => ({
         id: item.Id,
-        name: item.BusName || item.Title,
+        name: item.Title || item.Title,
         status: item.Status || "Not Here"
       }));
 
@@ -198,5 +198,6 @@
   </script>
 </body>
 </html>
+
 
 
