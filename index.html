@@ -11,8 +11,8 @@
     #board { display:flex; gap:16px; margin-top:12px; }
     .column { flex:1; background:white; border-radius:10px; padding:12px; min-height:400px; box-shadow:0 1px 4px rgba(0,0,0,0.08); }
     .column h2 { text-align:center; }
-    .bus { background:#e6f0ff; margin:6px; padding:10px; border-radius:8px; cursor:grab; }
-    .bus.dragging { opacity:0.5; }
+    .bus { background:#e6f0ff; margin:6px; padding:10px; border-radius:8px; cursor:grab; transition:transform 0.1s ease; }
+    .bus.dragging { opacity:0.5; transform:scale(1.05); }
     button { padding:8px 16px; border:none; border-radius:6px; background:#2563eb; color:white; cursor:pointer; }
     button:hover { background:#1e40af; }
     #login { display:flex; justify-content:center; margin:20px; }
@@ -29,7 +29,8 @@
     <div class="column" id="Gone"><h2>🏁 Gone</h2></div>
   </div>
 
-  <audio id="ding" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+  <!-- 🎵 Ding sound -->
+  <audio id="ding" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
 
   <script>
   // 1️⃣ MSAL configuration
@@ -86,7 +87,6 @@
     } catch (error) {
       console.error("❌ Login error:", error);
 
-      // Fallback to popup if silent fails
       if (error.errorCode === "no_account_error" || error.errorCode === "interaction_required") {
         const loginResponse = await msalInstance.loginPopup({
           scopes: ["https://thewatsoninstitute.sharepoint.com/.default"]
@@ -113,7 +113,7 @@
       return;
     }
 
-    const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id,Title,Title,Status`;
+    const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id,Title,Status`;
 
     try {
       const response = await fetch(endpoint, {
@@ -130,7 +130,7 @@
 
       const buses = data.value.map(item => ({
         id: item.Id,
-        name: item.Title || item.Title,
+        name: item.Title,
         status: item.Status || "Not Here"
       }));
 
@@ -142,8 +142,10 @@
     }
   }
 
-  // 🔹 Render dashboard
+  // 🔹 Render dashboard (with reliable sound)
   function render(buses) {
+    const ding = document.getElementById("ding");
+
     ["Not Here", "Here", "Gone"].forEach(status => {
       const col = document.getElementById(status);
       col.querySelectorAll(".bus").forEach(b => b.remove());
@@ -153,10 +155,12 @@
         div.textContent = bus.name;
         div.draggable = true;
         div.dataset.id = bus.id;
+
         div.addEventListener("dragstart", e => {
           e.dataTransfer.setData("text/plain", bus.id);
           div.classList.add("dragging");
         });
+
         div.addEventListener("dragend", () => div.classList.remove("dragging"));
         col.appendChild(div);
       });
@@ -171,7 +175,12 @@
         if (bus.status === col.id) return;
         bus.status = col.id;
         render(buses);
-        if (col.id === "Here") document.getElementById("ding").play().catch(()=>{});
+        if (col.id === "Here") {
+          // Reset sound to start and play it fresh every time
+          ding.pause();
+          ding.currentTime = 0;
+          ding.play().catch(()=>{});
+        }
         await updateListItem(bus);
       };
     });
@@ -198,6 +207,3 @@
   </script>
 </body>
 </html>
-
-
-
