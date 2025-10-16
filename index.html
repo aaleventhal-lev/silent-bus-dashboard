@@ -16,6 +16,32 @@
     button { padding:8px 16px; border:none; border-radius:6px; background:#2563eb; color:white; cursor:pointer; }
     button:hover { background:#1e40af; }
     #login { display:flex; justify-content:center; margin:20px; }
+
+    /* 🔄 Loading overlay */
+    #loadingOverlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(241, 245, 249, 0.9);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5em;
+      color: #2563eb;
+      z-index: 1000;
+    }
+    .spinner {
+      border: 4px solid #e0e7ff;
+      border-top: 4px solid #2563eb;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      margin-right: 10px;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 
@@ -31,6 +57,12 @@
 
   <!-- 🎵 Ding sound -->
   <audio id="ding" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
+
+  <!-- 🔄 Loading overlay -->
+  <div id="loadingOverlay">
+    <div class="spinner"></div>
+    <span>Refreshing bus list…</span>
+  </div>
 
   <script>
   // 1️⃣ MSAL configuration
@@ -59,6 +91,11 @@
   let accessToken = null;
   const siteUrl = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
   const listName = "Silent Bus Admin List";
+
+  // 🌀 Helper to show/hide loading overlay
+  function showLoading(show) {
+    document.getElementById("loadingOverlay").style.display = show ? "flex" : "none";
+  }
 
   // 🔹 Sign in and acquire token
   async function signIn() {
@@ -113,6 +150,7 @@
       return;
     }
 
+    showLoading(true);
     const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id,Title,Status`;
 
     try {
@@ -139,10 +177,12 @@
     } catch (error) {
       console.error("⚠️ Error loading list data:", error);
       alert("Could not load bus data. Check console for details.");
+    } finally {
+      showLoading(false);
     }
   }
 
-  // 🔹 Render dashboard (with reliable sound)
+  // 🔹 Render dashboard (with reliable sound + refresh)
   function render(buses) {
     const ding = document.getElementById("ding");
 
@@ -176,12 +216,12 @@
         bus.status = col.id;
         render(buses);
         if (col.id === "Here") {
-          // Reset sound to start and play it fresh every time
           ding.pause();
           ding.currentTime = 0;
           ding.play().catch(()=>{});
         }
         await updateListItem(bus);
+        await loadListData(); // 🔄 Refresh board immediately after update
       };
     });
   }
@@ -204,6 +244,15 @@
       console.error("⚠️ Update failed:", await response.text());
     }
   }
+
+  // 🔁 Auto-refresh every 15 seconds
+  setInterval(() => {
+    const account = msalInstance.getActiveAccount();
+    if (account && accessToken) {
+      loadListData();
+    }
+  }, 15000); // 15 seconds
   </script>
 </body>
 </html>
+
