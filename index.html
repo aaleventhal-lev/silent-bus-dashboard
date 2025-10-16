@@ -51,6 +51,7 @@
 
   <div id="board" style="display:none;">
     <div class="column" id="Not Here"><h2>🚍 Not Here</h2></div>
+    <div class="column" id="On Deck"><h2>⌚On Deck</h2></div>
     <div class="column" id="Here"><h2>✅ Here</h2></div>
     <div class="column" id="Gone"><h2>🏁 Gone</h2></div>
   </div>
@@ -186,7 +187,7 @@
   function render(buses) {
     const ding = document.getElementById("ding");
 
-    ["Not Here", "Here", "Gone"].forEach(status => {
+    ["Not Here", "On Deck", "Here", "Gone"].forEach(status => {
       const col = document.getElementById(status);
       col.querySelectorAll(".bus").forEach(b => b.remove());
       buses.filter(b => b.status === status).forEach(bus => {
@@ -215,11 +216,9 @@
         if (bus.status === col.id) return;
         bus.status = col.id;
         render(buses);
-        if (col.id === "Here") {
-          ding.pause();
-          ding.currentTime = 0;
-          ding.play().catch(()=>{});
-        }
+        if (col.id === "Here" || col.id === "On Deck") {
+  ding.pause(); ding.currentTime = 0; ding.play().catch(()=>{});
+}
         await updateListItem(bus);
         await loadListData(); // 🔄 Refresh board immediately after update
       };
@@ -255,4 +254,5 @@
   </script>
 </body>
 </html>
+
 
