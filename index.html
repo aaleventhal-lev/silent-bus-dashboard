@@ -51,7 +51,7 @@
 
   <div id="board" style="display:none;">
     <div class="column" id="Not Here"><h2>🚍 Not Here</h2></div>
-    <div class="column" id="On Deck"><h2>⌚On Deck</h2></div>
+    <div class="column" id="On Deck"><h2>⌚ On Deck</h2></div>
     <div class="column" id="Here"><h2>✅ Here</h2></div>
     <div class="column" id="Gone"><h2>🏁 Gone</h2></div>
   </div>
@@ -83,75 +83,47 @@
   const accounts = msalInstance.getAllAccounts();
   if (accounts.length > 0) {
     msalInstance.setActiveAccount(accounts[0]);
-    console.log("✅ Restored account:", accounts[0]);
-  } else {
-    console.log("ℹ️ No cached account found");
   }
 
-  // Global variables
   let accessToken = null;
   const siteUrl = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
   const listName = "Silent Bus Admin List";
+  const ding = document.getElementById("ding");
+  let previousStatuses = {}; // 🧠 Store last known bus statuses
+  let initialized = false;   // 🚫 Prevent sound spam on initial load
 
-  // 🌀 Helper to show/hide loading overlay
   function showLoading(show) {
     document.getElementById("loadingOverlay").style.display = show ? "flex" : "none";
   }
 
-  // 🔹 Sign in and acquire token
+  // 🔹 Sign in
   async function signIn() {
     try {
       const loginResponse = await msalInstance.loginPopup({
         scopes: ["User.Read", "Sites.Read.All"]
       });
-      console.log("✅ Login successful:", loginResponse.account);
       msalInstance.setActiveAccount(loginResponse.account);
-
-      const account = msalInstance.getActiveAccount();
-      if (!account) throw new Error("No active account found after login");
 
       const tokenResponse = await msalInstance.acquireTokenSilent({
         scopes: ["https://thewatsoninstitute.sharepoint.com/.default"],
-        account: account
+        account: loginResponse.account
       });
 
       accessToken = tokenResponse.accessToken;
-      console.log("✅ Token acquired successfully");
-
       document.getElementById("login").style.display = "none";
       document.getElementById("board").style.display = "flex";
       await loadListData();
 
     } catch (error) {
       console.error("❌ Login error:", error);
-
-      if (error.errorCode === "no_account_error" || error.errorCode === "interaction_required") {
-        const loginResponse = await msalInstance.loginPopup({
-          scopes: ["https://thewatsoninstitute.sharepoint.com/.default"]
-        });
-        msalInstance.setActiveAccount(loginResponse.account);
-
-        const tokenResponse = await msalInstance.acquireTokenSilent({
-          scopes: ["https://thewatsoninstitute.sharepoint.com/.default"],
-          account: loginResponse.account
-        });
-
-        accessToken = tokenResponse.accessToken;
-        document.getElementById("login").style.display = "none";
-        document.getElementById("board").style.display = "flex";
-        await loadListData();
-      }
     }
   }
 
-  // 🔹 Load data from SharePoint list
+  // 🔹 Load data
   async function loadListData() {
-    if (!accessToken) {
-      console.error("❌ No access token, cannot load data.");
-      return;
-    }
-
+    if (!accessToken) return;
     showLoading(true);
+
     const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id,Title,Status`;
 
     try {
@@ -161,32 +133,44 @@
           "Accept": "application/json;odata=nometadata"
         }
       });
-
       if (!response.ok) throw new Error(`SharePoint API error: ${response.status}`);
 
       const data = await response.json();
-      console.log("📋 SharePoint data:", data);
-
       const buses = data.value.map(item => ({
         id: item.Id,
         name: item.Title,
         status: item.Status || "Not Here"
       }));
 
+      // 🎵 Detect changes and play sound
+      if (initialized) {
+        for (const bus of buses) {
+          const oldStatus = previousStatuses[bus.id];
+          const newStatus = bus.status;
+          if ((newStatus === "Here" || newStatus === "On Deck") && oldStatus !== newStatus) {
+            ding.pause(); ding.currentTime = 0; ding.play().catch(()=>{});
+          }
+        }
+      }
+
+      // 🧠 Update previous statuses
+      previousStatuses = {};
+      for (const bus of buses) {
+        previousStatuses[bus.id] = bus.status;
+      }
+      initialized = true;
+
       render(buses);
 
     } catch (error) {
       console.error("⚠️ Error loading list data:", error);
-      alert("Could not load bus data. Check console for details.");
     } finally {
       showLoading(false);
     }
   }
 
-  // 🔹 Render dashboard (with reliable sound + refresh)
+  // 🔹 Render dashboard
   function render(buses) {
-    const ding = document.getElementById("ding");
-
     ["Not Here", "On Deck", "Here", "Gone"].forEach(status => {
       const col = document.getElementById(status);
       col.querySelectorAll(".bus").forEach(b => b.remove());
@@ -201,7 +185,6 @@
           e.dataTransfer.setData("text/plain", bus.id);
           div.classList.add("dragging");
         });
-
         div.addEventListener("dragend", () => div.classList.remove("dragging"));
         col.appendChild(div);
       });
@@ -217,10 +200,10 @@
         bus.status = col.id;
         render(buses);
         if (col.id === "Here" || col.id === "On Deck") {
-  ding.pause(); ding.currentTime = 0; ding.play().catch(()=>{});
-}
+          ding.pause(); ding.currentTime = 0; ding.play().catch(()=>{});
+        }
         await updateListItem(bus);
-        await loadListData(); // 🔄 Refresh board immediately after update
+        await loadListData();
       };
     });
   }
@@ -228,7 +211,7 @@
   // 🔹 Update SharePoint item
   async function updateListItem(bus) {
     const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items(${bus.id})`;
-    const response = await fetch(endpoint, {
+    await fetch(endpoint, {
       method: "PATCH",
       headers: {
         "Authorization": `Bearer ${accessToken}`,
@@ -238,21 +221,13 @@
       },
       body: JSON.stringify({ Status: bus.status })
     });
-
-    if (!response.ok) {
-      console.error("⚠️ Update failed:", await response.text());
-    }
   }
 
   // 🔁 Auto-refresh every 15 seconds
   setInterval(() => {
     const account = msalInstance.getActiveAccount();
-    if (account && accessToken) {
-      loadListData();
-    }
-  }, 15000); // 15 seconds
+    if (account && accessToken) loadListData();
+  }, 15000);
   </script>
 </body>
 </html>
-
-
