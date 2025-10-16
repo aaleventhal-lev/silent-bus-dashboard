@@ -56,8 +56,9 @@
     <div class="column" id="Gone"><h2>🏁 Gone</h2></div>
   </div>
 
-  <!-- 🎵 Ding sound -->
-  <audio id="ding" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
+  <!-- 🎵 Sounds -->
+  <audio id="soundHere" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+  <audio id="soundOnDeck" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
 
   <!-- 🔄 Loading overlay -->
   <div id="loadingOverlay">
@@ -73,89 +74,126 @@
       authority: "https://login.microsoftonline.com/9c6c3caa-8f3d-4f3c-98f7-e4feea479b7d",
       redirectUri: "https://aaleventhal-lev.github.io/silent-bus-dashboard/"
     },
-    cache: {
-      cacheLocation: "localStorage",
-      storeAuthStateInCookie: false
-    }
+    cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false }
   };
 
   const msalInstance = new msal.PublicClientApplication(msalConfig);
   const accounts = msalInstance.getAllAccounts();
-  if (accounts.length > 0) {
-    msalInstance.setActiveAccount(accounts[0]);
-  }
+  if (accounts.length > 0) msalInstance.setActiveAccount(accounts[0]);
 
   let accessToken = null;
   const siteUrl = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
   const listName = "Silent Bus Admin List";
-  const ding = document.getElementById("ding");
-  // 🧠 Keep a map of previous statuses for comparison
+
+  // 🎵 Sound elements
+  const soundHere = document.getElementById("soundHere");
+  const soundOnDeck = document.getElementById("soundOnDeck");
+
+  // 🧠 Track previous statuses
   let previousStatuses = {};
   let initialized = false;
 
-async function loadListData() {
-  if (!accessToken) return;
-  showLoading(true);
+  // 🔹 Sign in and load
+  async function signIn() {
+    try {
+      const loginResponse = await msalInstance.loginPopup({
+        scopes: ["User.Read", "Sites.Read.All"]
+      });
+      msalInstance.setActiveAccount(loginResponse.account);
 
-  const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id,Title,Status`;
+      const tokenResponse = await msalInstance.acquireTokenSilent({
+        scopes: ["https://thewatsoninstitute.sharepoint.com/.default"],
+        account: loginResponse.account
+      });
 
-  try {
-    const response = await fetch(endpoint, {
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Accept": "application/json;odata=nometadata"
-      }
-    });
+      accessToken = tokenResponse.accessToken;
+      document.getElementById("login").style.display = "none";
+      document.getElementById("board").style.display = "flex";
 
-    if (!response.ok) throw new Error(`SharePoint API error: ${response.status}`);
+      await loadListData();
 
-    const data = await response.json();
-    const buses = data.value.map(item => ({
-      id: item.Id,
-      name: item.Title,
-      status: item.Status || "Not Here"
-    }));
+    } catch (error) {
+      console.error("❌ Login error:", error);
+    }
+  }
 
-    // 🎵 Detect real-time changes (skip initial load)
-    if (initialized) {
-      for (const bus of buses) {
-        const oldStatus = previousStatuses[bus.id];
-        const newStatus = bus.status;
-        // If the status changed and is now "Here" or "On Deck", play sound
-        if (oldStatus && oldStatus !== newStatus && (newStatus === "Here" || newStatus === "On Deck")) {
-          console.log(`🔊 Bus "${bus.name}" moved to ${newStatus}`);
-          ding.pause(); ding.currentTime = 0;
-          ding.play().catch(()=>{});
+  // 🌀 Show/hide loading overlay
+  function showLoading(show) {
+    document.getElementById("loadingOverlay").style.display = show ? "flex" : "none";
+  }
+
+  // 🔹 Load and compare data
+  async function loadListData() {
+    if (!accessToken) return;
+
+    showLoading(true);
+    const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id,Title,Status`;
+
+    try {
+      const response = await fetch(endpoint, {
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Accept": "application/json;odata=nometadata"
+        }
+      });
+
+      if (!response.ok) throw new Error(`SharePoint API error: ${response.status}`);
+
+      const data = await response.json();
+      const buses = data.value.map(item => ({
+        id: item.Id,
+        name: item.Title,
+        status: item.Status || "Not Here"
+      }));
+
+      // 🎵 Detect status changes (only after initial load)
+      if (initialized) {
+        for (const bus of buses) {
+          const oldStatus = previousStatuses[bus.id];
+          const newStatus = bus.status;
+          if (oldStatus && oldStatus !== newStatus) {
+            if (newStatus === "Here") {
+              soundHere.pause(); soundHere.currentTime = 0; soundHere.play().catch(()=>{});
+            } else if (newStatus === "On Deck") {
+              soundOnDeck.pause(); soundOnDeck.currentTime = 0; soundOnDeck.play().catch(()=>{});
+            }
+          }
         }
       }
+
+      // 🧠 Update snapshot for next comparison
+      previousStatuses = {};
+      for (const bus of buses) previousStatuses[bus.id] = bus.status;
+
+      initialized = true;
+      render(buses);
+
+    } catch (error) {
+      console.error("⚠️ Error loading list data:", error);
+    } finally {
+      showLoading(false);
     }
-
-    // 🧠 Update snapshot for next comparison
-    previousStatuses = {};
-    for (const bus of buses) {
-      previousStatuses[bus.id] = bus.status;
-    }
-
-    initialized = true;
-    render(buses);
-
-  } catch (error) {
-    console.error("⚠️ Error loading list data:", error);
-  } finally {
-    showLoading(false);
   }
-}
 
-// 🔁 Auto-refresh every 15 seconds
-setInterval(async () => {
-  const account = msalInstance.getActiveAccount();
-  if (account && accessToken) {
-    await loadListData();
+  // 🔹 Render columns
+  function render(buses) {
+    ["Not Here", "On Deck", "Here", "Gone"].forEach(status => {
+      const col = document.getElementById(status);
+      col.querySelectorAll(".bus").forEach(b => b.remove());
+      buses.filter(b => b.status === status).forEach(bus => {
+        const div = document.createElement("div");
+        div.className = "bus";
+        div.textContent = bus.name;
+        col.appendChild(div);
+      });
+    });
   }
-}, 15000);
 
+  // 🔁 Auto-refresh every 15 seconds
+  setInterval(async () => {
+    const account = msalInstance.getActiveAccount();
+    if (account && accessToken) await loadListData();
+  }, 15000);
 </script>
 </body>
 </html>
-
-
