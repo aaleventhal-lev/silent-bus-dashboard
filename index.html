@@ -15,7 +15,8 @@
     .bus.dragging { opacity:0.5; transform:scale(1.05); }
     button { padding:8px 16px; border:none; border-radius:6px; background:#2563eb; color:white; cursor:pointer; }
     button:hover { background:#1e40af; }
-    #login, #soundPermission { display:flex; justify-content:center; margin:20px; }
+    #login { display:flex; justify-content:center; margin:20px; }
+    #enableSound { display:none; margin:10px auto; }
 
     /* 🔄 Loading overlay */
     #loadingOverlay {
@@ -38,17 +39,21 @@
       margin-right: 10px;
       animation: spin 0.8s linear infinite;
     }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    /* Flash animation for new/updated buses */
+    @keyframes flash {
+      0% { background-color: #fff59d; }
+      100% { background-color: #e6f0ff; }
     }
+    .flash { animation: flash 1s ease; }
   </style>
 </head>
+
 <body>
   <h1>Silent Bus Dashboard — Live</h1>
-
   <div id="login"><button onclick="signIn()">Sign in with Microsoft</button></div>
-  <div id="soundPermission" style="display:none;"><button onclick="enableSounds()">Enable Sounds 🔊</button></div>
+  <button id="enableSound">Enable Sound</button>
 
   <div id="board" style="display:none;">
     <div class="column" id="Not Here"><h2>🚍 Not Here</h2></div>
@@ -58,8 +63,8 @@
   </div>
 
   <!-- 🎵 Sounds -->
-  <audio id="soundHere" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
-  <audio id="soundOnDeck" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+  <audio id="dingHere" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
+  <audio id="dingOnDeck" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" preload="auto"></audio>
 
   <!-- 🔄 Loading overlay -->
   <div id="loadingOverlay">
@@ -83,103 +88,129 @@
   let accessToken = null;
   const siteUrl = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
   const listName = "Silent Bus Admin List";
-  const soundHere = document.getElementById("soundHere");
-  const soundOnDeck = document.getElementById("soundOnDeck");
+  let previousStatuses = {};
+  let initialized = false;
+  let soundEnabled = false;
 
-  // 🔊 Session-based sound permission
-  function showSoundButton(){ document.getElementById("soundPermission").style.display = "block"; }
-  function enableSounds(){
-    soundHere.play().then(()=>soundHere.pause()).catch(()=>{});
-    soundOnDeck.play().then(()=>soundOnDeck.pause()).catch(()=>{});
-    document.getElementById("soundPermission").style.display = "none";
-    sessionStorage.setItem("soundsEnabled", "true");
-  }
-  if (!sessionStorage.getItem("soundsEnabled")) showSoundButton();
+  const dingHere = document.getElementById("dingHere");
+  const dingOnDeck = document.getElementById("dingOnDeck");
+  const enableSoundButton = document.getElementById("enableSound");
 
-  // 🌀 Loading overlay
-  function showLoading(show){ document.getElementById("loadingOverlay").style.display = show ? "flex" : "none"; }
+  enableSoundButton.addEventListener("click", () => {
+    soundEnabled = true;
+    enableSoundButton.style.display = "none";
+  });
+
+  function showLoading(show) { document.getElementById("loadingOverlay").style.display = show ? "flex" : "none"; }
 
   async function signIn() {
     try {
       const loginResponse = await msalInstance.loginPopup({ scopes: ["User.Read", "Sites.Read.All"] });
       msalInstance.setActiveAccount(loginResponse.account);
-      const tokenResponse = await msalInstance.acquireTokenSilent({ scopes: ["https://thewatsoninstitute.sharepoint.com/.default"], account: loginResponse.account });
+      const account = msalInstance.getActiveAccount();
+      if (!account) throw new Error("No active account found after login");
+
+      const tokenResponse = await msalInstance.acquireTokenSilent({
+        scopes: ["https://thewatsoninstitute.sharepoint.com/.default"],
+        account
+      });
+
       accessToken = tokenResponse.accessToken;
       document.getElementById("login").style.display = "none";
+      enableSoundButton.style.display = "block"; // Show enable sound button after login
       document.getElementById("board").style.display = "flex";
       await loadListData();
-    } catch(e){ console.error(e); }
-  }
 
-  let previousStatuses = {};
-  let initialized = false;
+    } catch (error) {
+      console.error("Login error:", error);
+    }
+  }
 
   async function loadListData() {
     if (!accessToken) return;
     showLoading(true);
-    const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id,Title,Status`;
     try {
-      const resp = await fetch(endpoint, { headers:{ "Authorization":`Bearer ${accessToken}`, "Accept":"application/json;odata=nometadata" } });
-      const data = await resp.json();
-      const buses = data.value.map(item=>({id:item.Id, name:item.Title, status:item.Status||"Not Here"}));
+      const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id,Title,Status`;
+      const response = await fetch(endpoint, {
+        headers: { "Authorization": `Bearer ${accessToken}`, "Accept": "application/json;odata=nometadata" }
+      });
+      if (!response.ok) throw new Error(`SharePoint API error: ${response.status}`);
+      const data = await response.json();
+      const buses = data.value.map(item => ({ id: item.Id, name: item.Title, status: item.Status || "Not Here" }));
 
-      // 🔊 Play sounds on status change (skip initial load)
-      if (initialized && sessionStorage.getItem("soundsEnabled")) {
-        for (const bus of buses){
-          const old = previousStatuses[bus.id];
-          if(old && old!==bus.status){
-            if(bus.status==="Here") { soundHere.pause(); soundHere.currentTime=0; soundHere.play().catch(()=>{}); }
-            else if(bus.status==="On Deck") { soundOnDeck.pause(); soundOnDeck.currentTime=0; soundOnDeck.play().catch(()=>{}); }
+      // Detect real-time changes (skip initial load)
+      if (initialized && soundEnabled) {
+        for (const bus of buses) {
+          const oldStatus = previousStatuses[bus.id];
+          const newStatus = bus.status;
+          if (oldStatus && oldStatus !== newStatus) {
+            // Play appropriate sound
+            if (newStatus === "Here") { dingHere.pause(); dingHere.currentTime = 0; dingHere.play().catch(()=>{}); }
+            if (newStatus === "On Deck") { dingOnDeck.pause(); dingOnDeck.currentTime = 0; dingOnDeck.play().catch(()=>{}); }
           }
         }
       }
 
-      previousStatuses = {}; for(const bus of buses){ previousStatuses[bus.id]=bus.status; }
+      // Update snapshot for next comparison
+      previousStatuses = {};
+      for (const bus of buses) previousStatuses[bus.id] = bus.status;
+
       initialized = true;
       render(buses);
-
-    } catch(e){ console.error(e); }
-    finally{ showLoading(false); }
+    } catch (error) { console.error("Error loading list data:", error); }
+    finally { showLoading(false); }
   }
 
-  function render(buses){
-    ["Not Here","On Deck","Here","Gone"].forEach(status=>{
-      const col=document.getElementById(status);
-      col.querySelectorAll(".bus").forEach(b=>b.remove());
-      buses.filter(b=>b.status===status).forEach(bus=>{
-        const div=document.createElement("div");
-        div.className="bus";
-        div.textContent=bus.name;
-        div.draggable=true;
-        div.dataset.id=bus.id;
+  function render(buses) {
+    ["Not Here","On Deck","Here","Gone"].forEach(status => {
+      const col = document.getElementById(status);
+      col.querySelectorAll(".bus").forEach(b => b.remove());
+      buses.filter(b => b.status===status).forEach(bus => {
+        const div = document.createElement("div");
+        div.className = "bus";
+        div.textContent = bus.name;
+        div.draggable = true;
+        div.dataset.id = bus.id;
 
-        div.addEventListener("dragstart", e=>{ e.dataTransfer.setData("text/plain", bus.id); div.classList.add("dragging"); });
-        div.addEventListener("dragend", ()=>div.classList.remove("dragging"));
+        // Highlight flash for changes
+        const oldStatus = previousStatuses[bus.id];
+        if(initialized && oldStatus && oldStatus !== bus.status){
+          div.classList.add("flash");
+          div.addEventListener("animationend",()=>div.classList.remove("flash"));
+        }
+
+        div.addEventListener("dragstart", e => { e.dataTransfer.setData("text/plain", bus.id); div.classList.add("dragging"); });
+        div.addEventListener("dragend", () => div.classList.remove("dragging"));
         col.appendChild(div);
       });
     });
 
-    document.querySelectorAll(".column").forEach(col=>{
-      col.ondragover=e=>e.preventDefault();
-      col.ondrop=async e=>{
+    document.querySelectorAll(".column").forEach(col => {
+      col.ondragover = e => e.preventDefault();
+      col.ondrop = async e => {
         e.preventDefault();
-        const id=e.dataTransfer.getData("text/plain");
-        const bus=buses.find(b=>b.id==id);
-        if(bus.status===col.id) return;
-        bus.status=col.id;
+        const id = e.dataTransfer.getData("text/plain");
+        const bus = buses.find(b => b.id == id);
+        if (bus.status === col.id) return;
+        const oldStatus = bus.status;
+        bus.status = col.id;
         render(buses);
-        if(sessionStorage.getItem("soundsEnabled")){
-          if(col.id==="Here"){ soundHere.pause(); soundHere.currentTime=0; soundHere.play().catch(()=>{}); }
-          else if(col.id==="On Deck"){ soundOnDeck.pause(); soundOnDeck.currentTime=0; soundOnDeck.play().catch(()=>{}); }
+
+        // Play sound only for user making the change
+        if(soundEnabled){
+          if(bus.status === "Here") { dingHere.pause(); dingHere.currentTime=0; dingHere.play().catch(()=>{}); }
+          if(bus.status === "On Deck") { dingOnDeck.pause(); dingOnDeck.currentTime=0; dingOnDeck.play().catch(()=>{}); }
         }
+
         await updateListItem(bus);
+        await loadListData(); // Refresh board after update
       };
     });
   }
 
-  async function updateListItem(bus){
-    const endpoint=`${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items(${bus.id})`;
-    await fetch(endpoint,{
+  async function updateListItem(bus) {
+    const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items(${bus.id})`;
+    const response = await fetch(endpoint, {
       method:"PATCH",
       headers:{
         "Authorization":`Bearer ${accessToken}`,
@@ -187,15 +218,15 @@
         "Content-Type":"application/json;odata=nometadata",
         "IF-MATCH":"*"
       },
-      body:JSON.stringify({Status:bus.status})
+      body: JSON.stringify({Status: bus.status})
     });
+    if(!response.ok) console.error("Update failed:", await response.text());
   }
 
   setInterval(async ()=>{
-    const account=msalInstance.getActiveAccount();
+    const account = msalInstance.getActiveAccount();
     if(account && accessToken) await loadListData();
-  },15000);
-
+  }, 15000);
   </script>
 </body>
 </html>
