@@ -18,6 +18,16 @@
     #login { display:flex; justify-content:center; margin:20px; }
     #enableSound { display:none; margin:10px auto; }
 
+    /* 🔄 Reset button styling */
+    #resetBoardBtn {
+      display:none;
+      margin:10px auto;
+      background-color:#c0392b;
+    }
+    #resetBoardBtn:hover {
+      background-color:#922b21;
+    }
+
     /* 🔄 Loading overlay */
     #loadingOverlay {
       position: fixed;
@@ -54,6 +64,7 @@
   <h1>Silent Bus Dashboard — Live</h1>
   <div id="login"><button onclick="signIn()">Sign in with Microsoft</button></div>
   <button id="enableSound">Enable Sound</button>
+  <button id="resetBoardBtn">🔄 Reset Board</button> <!-- ✅ Added Reset button -->
 
   <div id="board" style="display:none;">
     <div class="column" id="Not Here"><h2>🚍 Not Here</h2></div>
@@ -95,6 +106,7 @@
   const dingHere = document.getElementById("dingHere");
   const dingOnDeck = document.getElementById("dingOnDeck");
   const enableSoundButton = document.getElementById("enableSound");
+  const resetButton = document.getElementById("resetBoardBtn");
 
   enableSoundButton.addEventListener("click", () => {
     soundEnabled = true;
@@ -105,7 +117,7 @@
 
   async function signIn() {
     try {
-      const loginResponse = await msalInstance.loginPopup({ scopes: ["User.Read", "Sites.Read.All"] });
+      const loginResponse = await msalInstance.loginPopup({ scopes: ["User.Read", "Sites.Read.All", "Sites.FullControl.All"] });
       msalInstance.setActiveAccount(loginResponse.account);
       const account = msalInstance.getActiveAccount();
       if (!account) throw new Error("No active account found after login");
@@ -117,8 +129,9 @@
 
       accessToken = tokenResponse.accessToken;
       document.getElementById("login").style.display = "none";
-      enableSoundButton.style.display = "block"; // Show enable sound button after login
+      enableSoundButton.style.display = "block"; 
       document.getElementById("board").style.display = "flex";
+      resetButton.style.display = "block"; // ✅ Show Reset after login
       await loadListData();
 
     } catch (error) {
@@ -138,20 +151,17 @@
       const data = await response.json();
       const buses = data.value.map(item => ({ id: item.Id, name: item.Title, status: item.Status || "Not Here" }));
 
-      // Detect real-time changes (skip initial load)
       if (initialized && soundEnabled) {
         for (const bus of buses) {
           const oldStatus = previousStatuses[bus.id];
           const newStatus = bus.status;
           if (oldStatus && oldStatus !== newStatus) {
-            // Play appropriate sound
             if (newStatus === "Here") { dingHere.pause(); dingHere.currentTime = 0; dingHere.play().catch(()=>{}); }
             if (newStatus === "On Deck") { dingOnDeck.pause(); dingOnDeck.currentTime = 0; dingOnDeck.play().catch(()=>{}); }
           }
         }
       }
 
-      // Update snapshot for next comparison
       previousStatuses = {};
       for (const bus of buses) previousStatuses[bus.id] = bus.status;
 
@@ -172,7 +182,6 @@
         div.draggable = true;
         div.dataset.id = bus.id;
 
-        // Highlight flash for changes
         const oldStatus = previousStatuses[bus.id];
         if(initialized && oldStatus && oldStatus !== bus.status){
           div.classList.add("flash");
@@ -192,18 +201,14 @@
         const id = e.dataTransfer.getData("text/plain");
         const bus = buses.find(b => b.id == id);
         if (bus.status === col.id) return;
-        const oldStatus = bus.status;
         bus.status = col.id;
         render(buses);
-
-        // Play sound only for user making the change
         if(soundEnabled){
           if(bus.status === "Here") { dingHere.pause(); dingHere.currentTime=0; dingHere.play().catch(()=>{}); }
           if(bus.status === "On Deck") { dingOnDeck.pause(); dingOnDeck.currentTime=0; dingOnDeck.play().catch(()=>{}); }
         }
-
         await updateListItem(bus);
-        await loadListData(); // Refresh board after update
+        await loadListData();
       };
     });
   }
@@ -227,6 +232,67 @@
     const account = msalInstance.getActiveAccount();
     if(account && accessToken) await loadListData();
   }, 15000);
+
+  /* ✅ RESET BOARD FUNCTION */
+  resetButton.addEventListener("click", async () => {
+    if (!confirm("Are you sure you want to reset all buses to 'Not Here'?")) return;
+    try {
+      showLoading(true);
+      const response = await fetch(`${siteUrl}/_api/web/lists/getbytitle('${listName}')/items?$select=Id`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json;odata=verbose"
+        }
+      });
+      const data = await response.json();
+      const items = data.d.results;
+      if (items.length === 0) {
+        alert("No bus items found to reset.");
+        showLoading(false);
+        return;
+      }
+
+      const batchGuid = "batch_" + crypto.randomUUID();
+      let batchBody = "";
+
+      items.forEach(item => {
+        batchBody += `
+--${batchGuid}
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+
+PATCH ${siteUrl}/_api/web/lists/getbytitle('${listName}')/items(${item.Id}) HTTP/1.1
+Content-Type: application/json;odata=verbose
+If-Match: *
+
+{"Status":"Not Here"}
+`;
+      });
+
+      batchBody += `\n--${batchGuid}--`;
+
+      const batchResponse = await fetch(`${siteUrl}/_api/$batch`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": `multipart/mixed; boundary=${batchGuid}`,
+          Accept: "application/json;odata=verbose"
+        },
+        body: batchBody
+      });
+
+      if (!batchResponse.ok) throw new Error(`Batch request failed: ${batchResponse.statusText}`);
+
+      alert("✅ All buses have been reset to 'Not Here'.");
+      location.reload();
+
+    } catch (error) {
+      console.error("Error resetting board:", error);
+      alert("❌ Something went wrong while resetting the board. Check console for details.");
+    } finally {
+      showLoading(false);
+    }
+  });
   </script>
 </body>
 </html>
