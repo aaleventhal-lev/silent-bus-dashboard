@@ -64,7 +64,7 @@
   <h1>Silent Bus Dashboard — Live</h1>
   <div id="login"><button onclick="signIn()">Sign in with Microsoft</button></div>
   <button id="enableSound">Enable Sound</button>
-  <button id="resetBoardBtn">🔄 Reset Board</button> <!-- ✅ Added Reset button -->
+  <button id="resetBoardBtn">🔄 Reset Board</button>
 
   <div id="board" style="display:none;">
     <div class="column" id="Not Here"><h2>🚍 Not Here</h2></div>
@@ -233,59 +233,38 @@
     if(account && accessToken) await loadListData();
   }, 15000);
 
-  /* ✅ RESET BOARD FUNCTION */
+  /* ✅ SIMPLIFIED RESET BOARD FUNCTION */
   resetButton.addEventListener("click", async () => {
     if (!confirm("Are you sure you want to reset all buses to 'Not Here'?")) return;
     try {
       showLoading(true);
-      const response = await fetch(`${siteUrl}/_api/web/lists/getbytitle('${listName}')/items?$select=Id`, {
+      const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id`;
+      const response = await fetch(endpoint, {
         headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json;odata=verbose"
+          "Authorization": `Bearer ${accessToken}`,
+          "Accept": "application/json;odata=nometadata"
         }
       });
       const data = await response.json();
-      const items = data.d.results;
-      if (items.length === 0) {
-        alert("No bus items found to reset.");
-        showLoading(false);
-        return;
+      const buses = data.value;
+
+      for (const bus of buses) {
+        const updateEndpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items(${bus.Id})`;
+        const updateResponse = await fetch(updateEndpoint, {
+          method: "PATCH",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Accept": "application/json;odata=nometadata",
+            "Content-Type": "application/json;odata=nometadata",
+            "IF-MATCH": "*"
+          },
+          body: JSON.stringify({ Status: "Not Here" })
+        });
+        if (!updateResponse.ok) console.warn(`Failed to reset bus ${bus.Id}`);
       }
 
-      const batchGuid = "batch_" + crypto.randomUUID();
-      let batchBody = "";
-
-      items.forEach(item => {
-        batchBody += `
---${batchGuid}
-Content-Type: application/http
-Content-Transfer-Encoding: binary
-
-PATCH ${siteUrl}/_api/web/lists/getbytitle('${listName}')/items(${item.Id}) HTTP/1.1
-Content-Type: application/json;odata=verbose
-If-Match: *
-
-{"Status":"Not Here"}
-`;
-      });
-
-      batchBody += `\n--${batchGuid}--`;
-
-      const batchResponse = await fetch(`${siteUrl}/_api/$batch`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": `multipart/mixed; boundary=${batchGuid}`,
-          Accept: "application/json;odata=verbose"
-        },
-        body: batchBody
-      });
-
-      if (!batchResponse.ok) throw new Error(`Batch request failed: ${batchResponse.statusText}`);
-
       alert("✅ All buses have been reset to 'Not Here'.");
-      location.reload();
-
+      window.location.reload();
     } catch (error) {
       console.error("Error resetting board:", error);
       alert("❌ Something went wrong while resetting the board. Check console for details.");
