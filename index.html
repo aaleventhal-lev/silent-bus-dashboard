@@ -24,9 +24,7 @@
       margin:10px auto;
       background-color:#c0392b;
     }
-    #resetBoardBtn:hover {
-      background-color:#922b21;
-    }
+    #resetBoardBtn:hover { background-color:#922b21; }
 
     /* 🔄 Loading overlay */
     #loadingOverlay {
@@ -74,7 +72,6 @@
 
   <!-- 🎵 Sounds -->
   <audio id="dingHere" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
-  <audio id="dingOnDeck" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" preload="auto"></audio>
 
   <!-- 🔄 Loading overlay -->
   <div id="loadingOverlay">
@@ -91,6 +88,7 @@
     },
     cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false }
   };
+
   const msalInstance = new msal.PublicClientApplication(msalConfig);
   const accounts = msalInstance.getAllAccounts();
   if (accounts.length > 0) msalInstance.setActiveAccount(accounts[0]);
@@ -103,7 +101,6 @@
   let soundEnabled = false;
 
   const dingHere = document.getElementById("dingHere");
-  const dingOnDeck = document.getElementById("dingOnDeck");
   const enableSoundButton = document.getElementById("enableSound");
   const resetButton = document.getElementById("resetBoardBtn");
 
@@ -112,11 +109,16 @@
     enableSoundButton.style.display = "none";
   });
 
-  function showLoading(show) { document.getElementById("loadingOverlay").style.display = show ? "flex" : "none"; }
+  function showLoading(show) {
+    document.getElementById("loadingOverlay").style.display = show ? "flex" : "none";
+  }
 
   async function signIn() {
     try {
-      const loginResponse = await msalInstance.loginPopup({ scopes: ["User.Read", "Sites.Read.All", "Sites.FullControl.All"] });
+      const loginResponse = await msalInstance.loginPopup({
+        scopes: ["User.Read", "Sites.Read.All", "Sites.FullControl.All"]
+      });
+
       msalInstance.setActiveAccount(loginResponse.account);
       const account = msalInstance.getActiveAccount();
       if (!account) throw new Error("No active account found after login");
@@ -127,68 +129,95 @@
       });
 
       accessToken = tokenResponse.accessToken;
-      document.getElementById("login").style.display = "none";
-      enableSoundButton.style.display = "block"; 
-      document.getElementById("board").style.display = "flex";
-      resetButton.style.display = "block"; // ✅ Show Reset after login
-      await loadListData();
 
+      document.getElementById("login").style.display = "none";
+      enableSoundButton.style.display = "block";
+      document.getElementById("board").style.display = "flex";
+      resetButton.style.display = "block";
+
+      await loadListData();
     } catch (error) {
       console.error("Login error:", error);
+      alert("Login failed. Open the console (F12) for details.");
     }
   }
 
   async function loadListData() {
     if (!accessToken) return;
+
     showLoading(true);
     try {
       const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id,Title,Status`;
       const response = await fetch(endpoint, {
-        headers: { "Authorization": `Bearer ${accessToken}`, "Accept": "application/json;odata=nometadata" }
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Accept": "application/json;odata=nometadata"
+        }
       });
-      if (!response.ok) throw new Error(`SharePoint API error: ${response.status}`);
-      const data = await response.json();
-      const buses = data.value.map(item => ({ id: item.Id, name: item.Title, status: item.Status || "Not Here" }));
 
+      if (!response.ok) throw new Error(`SharePoint API error: ${response.status}`);
+
+      const data = await response.json();
+      const buses = data.value.map(item => ({
+        id: item.Id,
+        name: item.Title,
+        status: item.Status || "Not Here"
+      }));
+
+      // Snapshot old statuses for sound + flash comparisons
+      const oldMap = { ...previousStatuses };
+
+      // ✅ Play sound when a bus changes to "Here"
       if (initialized && soundEnabled) {
         for (const bus of buses) {
-          const oldStatus = previousStatuses[bus.id];
+          const oldStatus = oldMap[bus.id];
           const newStatus = bus.status;
-          if (oldStatus && oldStatus !== newStatus) {
-            if (newStatus === "Here") { dingHere.pause(); dingHere.currentTime = 0; dingHere.play().catch(()=>{}); }
-             }
+
+          if (oldStatus && oldStatus !== newStatus && newStatus === "Here") {
+            dingHere.pause();
+            dingHere.currentTime = 0;
+            dingHere.play().catch(() => {});
           }
         }
       }
 
+      // Update previousStatuses AFTER comparisons
       previousStatuses = {};
       for (const bus of buses) previousStatuses[bus.id] = bus.status;
 
       initialized = true;
-      render(buses);
-    } catch (error) { console.error("Error loading list data:", error); }
-    finally { showLoading(false); }
+      render(buses, oldMap);
+    } catch (error) {
+      console.error("Error loading list data:", error);
+    } finally {
+      showLoading(false);
+    }
   }
 
-  function render(buses) {
-    ["Not Here","Here","Gone"].forEach(status => {
+  function render(buses, oldMap = {}) {
+    ["Not Here", "Here", "Gone"].forEach(status => {
       const col = document.getElementById(status);
       col.querySelectorAll(".bus").forEach(b => b.remove());
-      buses.filter(b => b.status===status).forEach(bus => {
+
+      buses.filter(b => b.status === status).forEach(bus => {
         const div = document.createElement("div");
         div.className = "bus";
         div.textContent = bus.name;
         div.draggable = true;
         div.dataset.id = bus.id;
 
-        const oldStatus = previousStatuses[bus.id];
-        if(initialized && oldStatus && oldStatus !== bus.status){
+        const oldStatus = oldMap[bus.id];
+        if (initialized && oldStatus && oldStatus !== bus.status) {
           div.classList.add("flash");
-          div.addEventListener("animationend",()=>div.classList.remove("flash"));
+          div.addEventListener("animationend", () => div.classList.remove("flash"));
         }
 
-        div.addEventListener("dragstart", e => { e.dataTransfer.setData("text/plain", bus.id); div.classList.add("dragging"); });
+        div.addEventListener("dragstart", e => {
+          e.dataTransfer.setData("text/plain", bus.id);
+          div.classList.add("dragging");
+        });
         div.addEventListener("dragend", () => div.classList.remove("dragging"));
+
         col.appendChild(div);
       });
     });
@@ -199,12 +228,20 @@
         e.preventDefault();
         const id = e.dataTransfer.getData("text/plain");
         const bus = buses.find(b => b.id == id);
+        if (!bus) return;
+
         if (bus.status === col.id) return;
+
         bus.status = col.id;
-        render(buses);
-        if(soundEnabled){
-          if(bus.status === "Here") { dingHere.pause(); dingHere.currentTime=0; dingHere.play().catch(()=>{}); }
+        render(buses, previousStatuses); // use latest as baseline for immediate UI update
+
+        // Optional: play sound immediately on manual move to Here
+        if (soundEnabled && bus.status === "Here") {
+          dingHere.pause();
+          dingHere.currentTime = 0;
+          dingHere.play().catch(() => {});
         }
+
         await updateListItem(bus);
         await loadListData();
       };
@@ -214,28 +251,32 @@
   async function updateListItem(bus) {
     const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items(${bus.id})`;
     const response = await fetch(endpoint, {
-      method:"PATCH",
-      headers:{
-        "Authorization":`Bearer ${accessToken}`,
-        "Accept":"application/json;odata=nometadata",
-        "Content-Type":"application/json;odata=nometadata",
-        "IF-MATCH":"*"
+      method: "PATCH",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Accept": "application/json;odata=nometadata",
+        "Content-Type": "application/json;odata=nometadata",
+        "IF-MATCH": "*"
       },
-      body: JSON.stringify({Status: bus.status})
+      body: JSON.stringify({ Status: bus.status })
     });
-    if(!response.ok) console.error("Update failed:", await response.text());
+
+    if (!response.ok) console.error("Update failed:", await response.text());
   }
 
-  setInterval(async ()=>{
+  // Refresh every 15 seconds if logged in
+  setInterval(async () => {
     const account = msalInstance.getActiveAccount();
-    if(account && accessToken) await loadListData();
+    if (account && accessToken) await loadListData();
   }, 15000);
 
   /* ✅ SIMPLIFIED RESET BOARD FUNCTION */
   resetButton.addEventListener("click", async () => {
     if (!confirm("Are you sure you want to reset all buses to 'Not Here'?")) return;
+
     try {
       showLoading(true);
+
       const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id`;
       const response = await fetch(endpoint, {
         headers: {
@@ -243,6 +284,9 @@
           "Accept": "application/json;odata=nometadata"
         }
       });
+
+      if (!response.ok) throw new Error(`SharePoint API error: ${response.status}`);
+
       const data = await response.json();
       const buses = data.value;
 
@@ -258,6 +302,7 @@
           },
           body: JSON.stringify({ Status: "Not Here" })
         });
+
         if (!updateResponse.ok) console.warn(`Failed to reset bus ${bus.Id}`);
       }
 
@@ -273,5 +318,6 @@
   </script>
 </body>
 </html>
+
 
 
