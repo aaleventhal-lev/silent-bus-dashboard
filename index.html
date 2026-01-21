@@ -68,7 +68,6 @@
 
   <div id="board" style="display:none;">
     <div class="column" id="Not Here"><h2>🚍 Not Here</h2></div>
-    <div class="column" id="On Deck"><h2>⌚ On Deck</h2></div>
     <div class="column" id="Here"><h2>✅ Here</h2></div>
     <div class="column" id="Gone"><h2>🏁 Gone</h2></div>
   </div>
@@ -157,7 +156,7 @@
           const newStatus = bus.status;
           if (oldStatus && oldStatus !== newStatus) {
             if (newStatus === "Here") { dingHere.pause(); dingHere.currentTime = 0; dingHere.play().catch(()=>{}); }
-            if (newStatus === "On Deck") { dingOnDeck.pause(); dingOnDeck.currentTime = 0; dingOnDeck.play().catch(()=>{}); }
+             }
           }
         }
       }
@@ -172,7 +171,7 @@
   }
 
   function render(buses) {
-    ["Not Here","On Deck","Here","Gone"].forEach(status => {
+    ["Not Here","Here","Gone"].forEach(status => {
       const col = document.getElementById(status);
       col.querySelectorAll(".bus").forEach(b => b.remove());
       buses.filter(b => b.status===status).forEach(bus => {
@@ -205,7 +204,6 @@
         render(buses);
         if(soundEnabled){
           if(bus.status === "Here") { dingHere.pause(); dingHere.currentTime=0; dingHere.play().catch(()=>{}); }
-          if(bus.status === "On Deck") { dingOnDeck.pause(); dingOnDeck.currentTime=0; dingOnDeck.play().catch(()=>{}); }
         }
         await updateListItem(bus);
         await loadListData();
@@ -275,4 +273,5 @@
   </script>
 </body>
 </html>
+
 
