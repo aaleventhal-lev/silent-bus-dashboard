@@ -18,7 +18,6 @@
     #login { display:flex; justify-content:center; margin:20px; }
     #enableSound { display:none; margin:10px auto; }
 
-    /* 🔄 Reset button styling */
     #resetBoardBtn {
       display:none;
       margin:10px auto;
@@ -26,7 +25,6 @@
     }
     #resetBoardBtn:hover { background-color:#922b21; }
 
-    /* 🔄 Loading overlay */
     #loadingOverlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -49,7 +47,6 @@
     }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-    /* Flash animation for new/updated buses */
     @keyframes flash {
       0% { background-color: #fff59d; }
       100% { background-color: #e6f0ff; }
@@ -66,14 +63,15 @@
 
   <div id="board" style="display:none;">
     <div class="column" id="Not Here"><h2>🚍 Not Here</h2></div>
+    <div class="column" id="On Deck"><h2>⌚ On Deck</h2></div>
     <div class="column" id="Here"><h2>✅ Here</h2></div>
     <div class="column" id="Gone"><h2>🏁 Gone</h2></div>
   </div>
 
   <!-- 🎵 Sounds -->
-  <audio id="dingHere" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
+  <audio id="dingHere"   src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
+  <audio id="dingOnDeck" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" preload="auto"></audio>
 
-  <!-- 🔄 Loading overlay -->
   <div id="loadingOverlay">
     <div class="spinner"></div>
     <span>Refreshing bus list…</span>
@@ -101,6 +99,7 @@
   let soundEnabled = false;
 
   const dingHere = document.getElementById("dingHere");
+  const dingOnDeck = document.getElementById("dingOnDeck");
   const enableSoundButton = document.getElementById("enableSound");
   const resetButton = document.getElementById("resetBoardBtn");
 
@@ -164,24 +163,27 @@
         status: item.Status || "Not Here"
       }));
 
-      // Snapshot old statuses for sound + flash comparisons
       const oldMap = { ...previousStatuses };
 
-      // ✅ Play sound when a bus changes to "Here"
+      // ✅ Play sound when a bus changes to "Here" or "On Deck"
       if (initialized && soundEnabled) {
         for (const bus of buses) {
           const oldStatus = oldMap[bus.id];
           const newStatus = bus.status;
 
-          if (oldStatus && oldStatus !== newStatus && newStatus === "Here") {
-            dingHere.pause();
-            dingHere.currentTime = 0;
-            dingHere.play().catch(() => {});
+          if (oldStatus && oldStatus !== newStatus) {
+            if (newStatus === "Here") {
+              dingHere.pause(); dingHere.currentTime = 0;
+              dingHere.play().catch(() => {});
+            }
+            if (newStatus === "On Deck") {
+              dingOnDeck.pause(); dingOnDeck.currentTime = 0;
+              dingOnDeck.play().catch(() => {});
+            }
           }
         }
       }
 
-      // Update previousStatuses AFTER comparisons
       previousStatuses = {};
       for (const bus of buses) previousStatuses[bus.id] = bus.status;
 
@@ -195,7 +197,7 @@
   }
 
   function render(buses, oldMap = {}) {
-    ["Not Here", "Here", "Gone"].forEach(status => {
+    ["Not Here", "On Deck", "Here", "Gone"].forEach(status => {
       const col = document.getElementById(status);
       col.querySelectorAll(".bus").forEach(b => b.remove());
 
@@ -233,13 +235,16 @@
         if (bus.status === col.id) return;
 
         bus.status = col.id;
-        render(buses, previousStatuses); // use latest as baseline for immediate UI update
+        render(buses, previousStatuses);
 
-        // Optional: play sound immediately on manual move to Here
+        // Optional: play sound immediately on manual moves
         if (soundEnabled && bus.status === "Here") {
-          dingHere.pause();
-          dingHere.currentTime = 0;
+          dingHere.pause(); dingHere.currentTime = 0;
           dingHere.play().catch(() => {});
+        }
+        if (soundEnabled && bus.status === "On Deck") {
+          dingOnDeck.pause(); dingOnDeck.currentTime = 0;
+          dingOnDeck.play().catch(() => {});
         }
 
         await updateListItem(bus);
@@ -264,13 +269,11 @@
     if (!response.ok) console.error("Update failed:", await response.text());
   }
 
-  // Refresh every 15 seconds if logged in
   setInterval(async () => {
     const account = msalInstance.getActiveAccount();
     if (account && accessToken) await loadListData();
   }, 15000);
 
-  /* ✅ SIMPLIFIED RESET BOARD FUNCTION */
   resetButton.addEventListener("click", async () => {
     if (!confirm("Are you sure you want to reset all buses to 'Not Here'?")) return;
 
