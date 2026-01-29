@@ -6,37 +6,68 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://alcdn.msauth.net/browser/2.37.0/js/msal-browser.min.js"></script>
   <style>
-    body { font-family: system-ui, "Segoe UI", Arial; background:#f1f5f9; margin:20px; }
-    h1 { text-align:center; margin-bottom: 8px; }
-    h2 { margin: 18px 0 8px; }
-    .subhead { text-align:center; color:#475569; margin-bottom: 18px; }
+    body { font-family: system-ui, "Segoe UI", Arial; background:#f1f5f9; margin:14px; }
+    h1 { text-align:center; margin: 6px 0 6px; }
+    .subhead { text-align:center; color:#475569; margin: 0 0 12px; font-size: 0.95em; }
 
-    .board { display:flex; gap:16px; margin-top:12px; align-items: flex-start; }
-    .column { flex:1; background:white; border-radius:10px; padding:12px; min-height:280px; box-shadow:0 1px 4px rgba(0,0,0,0.08); }
-    .column h3 { text-align:center; margin: 4px 0 10px; }
+    /* Top controls */
+    #topControls { display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin: 10px 0 10px; }
+    button { padding:8px 14px; border:none; border-radius:8px; background:#2563eb; color:white; cursor:pointer; }
+    button:hover { background:#1e40af; }
+    #enableSound { display:none; }
+    #resetBoardBtn { display:none; background:#c0392b; }
+    #resetBoardBtn:hover { background:#922b21; }
 
-    .tile { background:#e6f0ff; margin:6px; padding:10px; border-radius:8px; cursor:grab; transition:transform 0.1s ease; user-select:none; }
-    .tile.dragging { opacity:0.5; transform:scale(1.05); }
+    /* Layout: 2 panels in one row */
+    .topRow {
+      display:flex;
+      gap:14px;
+      align-items:flex-start;
+    }
 
-    /* Parent pickup tiles slightly different */
+    .panel {
+      background:white;
+      border-radius:12px;
+      box-shadow:0 1px 4px rgba(0,0,0,0.08);
+      padding:10px;
+    }
+
+    /* Make bus panel thinner */
+    #busPanel { flex: 0 0 40%; min-width: 320px; }
+    #pickupPanel { flex: 1 1 60%; min-width: 420px; }
+
+    .panelTitle {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin: 2px 2px 10px;
+    }
+    .panelTitle h2 { margin:0; font-size: 1.05em; }
+    .panelHint { color:#64748b; font-size: 0.9em; }
+
+    /* Boards */
+    .board { display:flex; gap:10px; align-items:flex-start; }
+
+    .column {
+      flex:1;
+      background:#ffffff;
+      border-radius:10px;
+      padding:10px;
+      min-height: 240px;
+      border: 1px solid #e2e8f0;
+    }
+    .column h3 { text-align:center; margin: 2px 0 10px; font-size: 0.95em; }
+
+    /* Bus tiles */
+    .tile { margin:6px 0; padding:10px; border-radius:10px; cursor:grab; transition:transform 0.1s ease; user-select:none; }
+    .tile.dragging { opacity:0.5; transform:scale(1.03); }
+
+    .bus { background:#e6f0ff; }
     .student { background:#fff7ed; }
 
-    button { padding:8px 16px; border:none; border-radius:6px; background:#2563eb; color:white; cursor:pointer; }
-    button:hover { background:#1e40af; }
-
-    #login { display:flex; justify-content:center; margin:20px; gap: 10px; flex-wrap: wrap; }
-    #enableSound { display:none; margin:10px auto; }
-
-    #resetBoardBtn {
-      display:none;
-      margin:10px auto;
-      background-color:#c0392b;
-    }
-    #resetBoardBtn:hover { background-color:#922b21; }
-
-    /* tighter columns for parking spots */
-    .spotsWrap { display:flex; gap:12px; flex-wrap: wrap; }
-    .spotCol { width: 180px; flex: 0 0 auto; min-height: 220px; }
+    /* Parking spots: compact columns */
+    .spotsWrap { display:flex; gap:10px; flex-wrap:wrap; }
+    .spotCol { width: 150px; flex: 0 0 auto; min-height: 160px; }
     .spotBadge {
       display:inline-block;
       font-weight:700;
@@ -74,6 +105,13 @@
       100% { background-color: inherit; }
     }
     .flash { animation: flash 0.9s ease; }
+
+    /* Small screens: stack panels */
+    @media (max-width: 1100px) {
+      .topRow { flex-direction: column; }
+      #busPanel, #pickupPanel { flex: 1 1 auto; min-width: unset; }
+      .spotCol { width: 46%; }
+    }
   </style>
 </head>
 
@@ -81,43 +119,54 @@
   <h1>Silent Bus Dashboard — Cupples (Live)</h1>
   <div class="subhead">Buses + Parent Pickups (Parking Spots 21–26)</div>
 
-  <div id="login">
-    <button onclick="signIn()">Sign in with Microsoft</button>
+  <div id="topControls">
+    <button id="signInBtn" onclick="signIn()">Sign in with Microsoft</button>
     <button id="enableSound">Enable Sound</button>
     <button id="resetBoardBtn">🔄 Reset Buses</button>
   </div>
 
-  <!-- BUS BOARD -->
-  <h2>🚌 Bus Board</h2>
-  <div id="busBoard" class="board" style="display:none;">
-    <div class="column dropzone" id="Not Here"><h3>🚍 Not Here</h3></div>
-    <div class="column dropzone" id="On Deck"><h3>⌚ On Deck</h3></div>
-    <div class="column dropzone" id="Here"><h3>✅ Here</h3></div>
-    <div class="column dropzone" id="Gone"><h3>🏁 Gone</h3></div>
-  </div>
-
-  <!-- PARENT PICKUP BOARD -->
-  <h2>👨‍👩‍👧 Parent Pickup Board</h2>
-  <div id="pickupBoard" style="display:none;">
-    <div class="board">
-      <div class="column dropzone" id="PP-Waiting">
-        <h3>📋 Waiting</h3>
+  <div class="topRow">
+    <!-- BUS PANEL -->
+    <div id="busPanel" class="panel" style="display:none;">
+      <div class="panelTitle">
+        <h2>🚌 Bus Board</h2>
+        <div class="panelHint">Drag buses between columns</div>
       </div>
 
-      <div class="column dropzone" id="PP-Done">
-        <h3>✅ Done</h3>
+      <div id="busBoard" class="board">
+        <div class="column dropzone" id="Not Here"><h3>🚍 Not Here</h3></div>
+        <div class="column dropzone" id="On Deck"><h3>⌚ On Deck</h3></div>
+        <div class="column dropzone" id="Here"><h3>✅ Here</h3></div>
+        <div class="column dropzone" id="Gone"><h3>🏁 Gone</h3></div>
       </div>
     </div>
 
-    <div style="margin-top:12px;">
-      <div style="font-weight:700; margin: 6px 0;">🚗 Parking Spots</div>
-      <div class="spotsWrap">
-        <div class="column dropzone spotCol" id="SPOT-21"><h3><span class="spotBadge">Spot 21</span></h3></div>
-        <div class="column dropzone spotCol" id="SPOT-22"><h3><span class="spotBadge">Spot 22</span></h3></div>
-        <div class="column dropzone spotCol" id="SPOT-23"><h3><span class="spotBadge">Spot 23</span></h3></div>
-        <div class="column dropzone spotCol" id="SPOT-24"><h3><span class="spotBadge">Spot 24</span></h3></div>
-        <div class="column dropzone spotCol" id="SPOT-25"><h3><span class="spotBadge">Spot 25</span></h3></div>
-        <div class="column dropzone spotCol" id="SPOT-26"><h3><span class="spotBadge">Spot 26</span></h3></div>
+    <!-- PICKUP PANEL -->
+    <div id="pickupPanel" class="panel" style="display:none;">
+      <div class="panelTitle">
+        <h2>👨‍👩‍👧 Parent Pickup</h2>
+        <div class="panelHint">Drag student → spot. Dropping replaces current name.</div>
+      </div>
+
+      <div class="board" style="margin-bottom: 10px;">
+        <div class="column dropzone" id="PP-Waiting">
+          <h3>📋 Waiting</h3>
+        </div>
+
+        <div class="column" style="flex:2;">
+          <h3>🚗 Parking Spots</h3>
+          <div class="spotsWrap">
+            <div class="column dropzone spotCol" id="SPOT-21"><h3><span class="spotBadge">21</span></h3></div>
+            <div class="column dropzone spotCol" id="SPOT-22"><h3><span class="spotBadge">22</span></h3></div>
+            <div class="column dropzone spotCol" id="SPOT-23"><h3><span class="spotBadge">23</span></h3></div>
+            <div class="column dropzone spotCol" id="SPOT-24"><h3><span class="spotBadge">24</span></h3></div>
+            <div class="column dropzone spotCol" id="SPOT-25"><h3><span class="spotBadge">25</span></h3></div>
+            <div class="column dropzone spotCol" id="SPOT-26"><h3><span class="spotBadge">26</span></h3></div>
+          </div>
+          <div style="color:#64748b; font-size:0.85em; margin-top:8px;">
+            Tip: If a spot already has a student, dropping a new name on it will automatically swap them.
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -147,15 +196,12 @@
 
   const siteUrl = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
 
-  // Buses
   const busListName = "Silent Bus Admin List";
-
-  // Parent pickups
   const pickupListName = "Parent Pickup Board";
   const parkingSpots = ["21","22","23","24","25","26"];
 
   /***********************
-   * AUTH + GLOBAL STATE
+   * AUTH + STATE
    ***********************/
   const msalInstance = new msal.PublicClientApplication(msalConfig);
   const accounts = msalInstance.getAllAccounts();
@@ -164,11 +210,9 @@
   let accessToken = null;
   let soundEnabled = false;
 
-  // Current items
   let busesState = [];
   let pickupsState = [];
 
-  // For flash/sound comparisons
   let prevBusStatuses = {};
   let initializedBuses = false;
 
@@ -176,6 +220,7 @@
   const dingOnDeck = document.getElementById("dingOnDeck");
   const enableSoundButton = document.getElementById("enableSound");
   const resetButton = document.getElementById("resetBoardBtn");
+  const signInBtn = document.getElementById("signInBtn");
 
   enableSoundButton.addEventListener("click", () => {
     soundEnabled = true;
@@ -208,11 +253,14 @@
 
       accessToken = tokenResponse.accessToken;
 
-      document.getElementById("login").style.display = "flex";
-      enableSoundButton.style.display = "block";
-      resetButton.style.display = "block";
-      document.getElementById("busBoard").style.display = "flex";
-      document.getElementById("pickupBoard").style.display = "block";
+      // ✅ Hide sign-in button after login
+      signInBtn.style.display = "none";
+
+      enableSoundButton.style.display = "inline-block";
+      resetButton.style.display = "inline-block";
+
+      document.getElementById("busPanel").style.display = "block";
+      document.getElementById("pickupPanel").style.display = "block";
 
       await refreshAll();
     } catch (error) {
@@ -240,7 +288,6 @@
       status: item.Status || "Not Here"
     }));
 
-    // Sound on status changes
     if (initializedBuses && soundEnabled) {
       for (const b of buses) {
         const oldStatus = oldMap[b.id];
@@ -258,7 +305,6 @@
       }
     }
 
-    // Update map
     prevBusStatuses = {};
     for (const b of buses) prevBusStatuses[b.id] = b.status;
     initializedBuses = true;
@@ -268,7 +314,6 @@
   }
 
   async function loadPickups() {
-    // We pull Modified so “recent changes” could be used later if you want
     const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${pickupListName}')/items?$select=Id,Title,Status,Spot,Modified`;
     const res = await fetch(endpoint, {
       headers: { "Authorization": `Bearer ${accessToken}`, "Accept": "application/json;odata=nometadata" }
@@ -300,12 +345,15 @@
   }
 
   /***********************
-   * RENDER: BUSES
+   * RENDER HELPERS
    ***********************/
   function clearColumn(col) {
     col.querySelectorAll(".tile").forEach(x => x.remove());
   }
 
+  /***********************
+   * RENDER: BUSES
+   ***********************/
   function renderBuses(buses, oldMap = {}) {
     const statuses = ["Not Here", "On Deck", "Here", "Gone"];
     for (const status of statuses) {
@@ -318,7 +366,6 @@
         div.textContent = bus.name;
         div.draggable = true;
 
-        // drag payload: type + id
         div.dataset.type = "bus";
         div.dataset.id = bus.id;
 
@@ -340,47 +387,25 @@
   }
 
   /***********************
-   * RENDER: PARENT PICKUPS
+   * RENDER: PICKUPS
    ***********************/
   function renderPickups(students) {
-    // Clear waiting + done
     clearColumn(document.getElementById("PP-Waiting"));
-    clearColumn(document.getElementById("PP-Done"));
-
-    // Clear each spot column
     for (const s of parkingSpots) clearColumn(document.getElementById(`SPOT-${s}`));
 
-    // Waiting list = Status Waiting and no spot
+    // Waiting = anything not in a spot
     const waiting = students
-      .filter(s => (s.status || "Waiting") === "Waiting" && !s.spot)
+      .filter(s => !s.spot)
       .sort((a,b) => (a.name || "").localeCompare((b.name || ""), undefined, { sensitivity:"base" }));
 
-    // Done list
-    const done = students
-      .filter(s => (s.status || "Waiting") === "Done")
-      .sort((a,b) => (b.modified || 0) - (a.modified || 0));
-
-    // Assigned to spots
-    const assigned = students.filter(s => !!s.spot);
-
-    // Render Waiting
     for (const stu of waiting) {
       document.getElementById("PP-Waiting").appendChild(makeStudentTile(stu));
     }
 
-    // Render Done
-    for (const stu of done) {
-      document.getElementById("PP-Done").appendChild(makeStudentTile(stu));
-    }
-
-    // Render each spot
     for (const spot of parkingSpots) {
       const col = document.getElementById(`SPOT-${spot}`);
-      const inThisSpot = assigned
-        .filter(s => String(s.spot) === String(spot))
-        .sort((a,b) => (a.name || "").localeCompare((b.name || ""), undefined, { sensitivity:"base" }));
-
-      for (const stu of inThisSpot) col.appendChild(makeStudentTile(stu));
+      const occupant = students.find(s => String(s.spot) === String(spot));
+      if (occupant) col.appendChild(makeStudentTile(occupant));
     }
   }
 
@@ -401,7 +426,7 @@
   }
 
   /***********************
-   * DROP HANDLING (BOTH BOARDS)
+   * DROP ZONES
    ***********************/
   function initDropZones() {
     document.querySelectorAll(".dropzone").forEach(col => {
@@ -410,11 +435,9 @@
         e.preventDefault();
 
         let payload;
-        try {
-          payload = JSON.parse(e.dataTransfer.getData("text/plain"));
-        } catch {
-          return;
-        }
+        try { payload = JSON.parse(e.dataTransfer.getData("text/plain")); }
+        catch { return; }
+
         if (!payload || !payload.type) return;
 
         // BUS DROP
@@ -422,7 +445,6 @@
           const bus = busesState.find(b => String(b.id) === String(payload.id));
           if (!bus) return;
 
-          // Only allow dropping onto bus columns (Not Here / On Deck / Here / Gone)
           const targetStatus = col.id;
           if (!["Not Here","On Deck","Here","Gone"].includes(targetStatus)) return;
           if (bus.status === targetStatus) return;
@@ -449,43 +471,30 @@
 
           const targetId = col.id;
 
-          // Drop into Waiting
+          // Drop into Waiting = clear spot
           if (targetId === "PP-Waiting") {
-            // clear spot, set waiting
             stu.spot = null;
-            stu.status = "Waiting";
             renderPickups(pickupsState);
             await updatePickupItem(stu.id, { Spot: null, Status: "Waiting" });
             await refreshAll();
             return;
           }
 
-          // Drop into Done
-          if (targetId === "PP-Done") {
-            stu.spot = null;
-            stu.status = "Done";
-            renderPickups(pickupsState);
-            await updatePickupItem(stu.id, { Spot: null, Status: "Done" });
-            await refreshAll();
-            return;
-          }
-
-          // Drop into a specific spot column
+          // Drop into a spot column
           if (targetId.startsWith("SPOT-")) {
             const spot = targetId.replace("SPOT-", "");
-
-            // Only allow defined spots 21-26
             if (!parkingSpots.includes(String(spot))) return;
 
-            // Enforce ONE student per spot
+            // ✅ Replacement behavior:
+            // If spot occupied by someone else, bump them to Waiting automatically.
             const existing = pickupsState.find(x => String(x.spot) === String(spot) && String(x.id) !== String(stu.id));
             if (existing) {
-              alert(`Spot ${spot} is already occupied by "${existing.name}".\n\nMove that student out first, then try again.`);
-              return;
+              existing.spot = null;
+              await updatePickupItem(existing.id, { Spot: null, Status: "Waiting" });
             }
 
             stu.spot = String(spot);
-            stu.status = "Waiting"; // stays waiting while assigned to a spot
+            stu.status = "Waiting"; // keep status consistent
             renderPickups(pickupsState);
 
             await updatePickupItem(stu.id, { Spot: String(spot), Status: "Waiting" });
@@ -498,7 +507,7 @@
   }
 
   /***********************
-   * UPDATE SHAREPOINT ITEMS
+   * SHAREPOINT PATCH
    ***********************/
   async function updateBusItem(id, bodyObj) {
     const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${busListName}')/items(${id})`;
@@ -538,7 +547,6 @@
 
     try {
       showLoading(true, "Resetting buses…");
-
       const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${busListName}')/items?$select=Id`;
       const response = await fetch(endpoint, {
         headers: {
@@ -546,13 +554,10 @@
           "Accept": "application/json;odata=nometadata"
         }
       });
-
       if (!response.ok) throw new Error(`SharePoint API error: ${response.status}`);
 
       const data = await response.json();
-      const items = data.value;
-
-      for (const item of items) {
+      for (const item of data.value) {
         await updateBusItem(item.Id, { Status: "Not Here" });
       }
 
@@ -574,7 +579,7 @@
     if (account && accessToken) await refreshAll();
   }, 15000);
 
-  // Initialize drop zones immediately
+  // init dropzones once
   initDropZones();
   </script>
 </body>
