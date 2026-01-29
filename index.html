@@ -32,9 +32,9 @@
       padding:10px;
     }
 
-    /* Make bus panel thinner */
-    #busPanel { flex: 0 0 40%; min-width: 320px; }
-    #pickupPanel { flex: 1 1 60%; min-width: 420px; }
+    /* ✅ Adjusted sizes: bus wider, pickup smaller */
+    #busPanel { flex: 1 1 64%; min-width: 520px; }
+    #pickupPanel { flex: 0 0 36%; min-width: 360px; }
 
     .panelTitle {
       display:flex;
@@ -58,23 +58,83 @@
     }
     .column h3 { text-align:center; margin: 2px 0 10px; font-size: 0.95em; }
 
-    /* Bus tiles */
-    .tile { margin:6px 0; padding:10px; border-radius:10px; cursor:grab; transition:transform 0.1s ease; user-select:none; }
+    /* Tiles */
+    .tile {
+      margin:6px 0;
+      padding:10px;
+      border-radius:10px;
+      cursor:grab;
+      transition:transform 0.1s ease;
+      user-select:none;
+      line-height: 1.2;
+      word-break: break-word;
+    }
     .tile.dragging { opacity:0.5; transform:scale(1.03); }
 
     .bus { background:#e6f0ff; }
-    .student { background:#fff7ed; }
 
-    /* Parking spots: compact columns */
-    .spotsWrap { display:flex; gap:10px; flex-wrap:wrap; }
-    .spotCol { width: 150px; flex: 0 0 auto; min-height: 160px; }
+    /* ✅ Student tiles slightly tighter */
+    .student {
+      background:#fff7ed;
+      padding:8px 10px;
+      border-radius:10px;
+      font-size: 0.95em;
+    }
+
+    /* ✅ Parking spots become a tight "single slot" */
+    .spotsGrid {
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:10px;
+      margin-top: 6px;
+    }
+
+    .spotCol {
+      min-height: 78px;          /* looks like one slot */
+      padding: 8px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      display:flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .spotHeader {
+      width: 100%;
+      display:flex;
+      justify-content:center;
+      margin-bottom: 6px;
+    }
+
     .spotBadge {
       display:inline-block;
       font-weight:700;
-      padding:4px 10px;
+      padding:3px 10px;
       border-radius:999px;
       background:#e2e8f0;
       color:#0f172a;
+      font-size: 0.9em;
+    }
+
+    /* ✅ Make occupant tile centered + no extra margins */
+    .spotCol .tile {
+      margin: 0;
+      width: 100%;
+      text-align: center;
+    }
+
+    /* Optional: faint placeholder when empty */
+    .spotEmpty {
+      color:#94a3b8;
+      font-size: 0.85em;
+      text-align:center;
+      width:100%;
+      padding: 6px 0;
+      border-radius: 10px;
+      border: 1px dashed #cbd5e1;
+      background: rgba(255,255,255,0.6);
     }
 
     /* Loading overlay */
@@ -110,7 +170,7 @@
     @media (max-width: 1100px) {
       .topRow { flex-direction: column; }
       #busPanel, #pickupPanel { flex: 1 1 auto; min-width: unset; }
-      .spotCol { width: 46%; }
+      .spotsGrid { grid-template-columns: repeat(2, 1fr); }
     }
   </style>
 </head>
@@ -145,26 +205,38 @@
     <div id="pickupPanel" class="panel" style="display:none;">
       <div class="panelTitle">
         <h2>👨‍👩‍👧 Parent Pickup</h2>
-        <div class="panelHint">Drag student → spot. Dropping replaces current name.</div>
+        <div class="panelHint">Drop replaces current spot</div>
       </div>
 
-      <div class="board" style="margin-bottom: 10px;">
+      <div class="board">
         <div class="column dropzone" id="PP-Waiting">
           <h3>📋 Waiting</h3>
         </div>
 
-        <div class="column" style="flex:2;">
-          <h3>🚗 Parking Spots</h3>
-          <div class="spotsWrap">
-            <div class="column dropzone spotCol" id="SPOT-21"><h3><span class="spotBadge">21</span></h3></div>
-            <div class="column dropzone spotCol" id="SPOT-22"><h3><span class="spotBadge">22</span></h3></div>
-            <div class="column dropzone spotCol" id="SPOT-23"><h3><span class="spotBadge">23</span></h3></div>
-            <div class="column dropzone spotCol" id="SPOT-24"><h3><span class="spotBadge">24</span></h3></div>
-            <div class="column dropzone spotCol" id="SPOT-25"><h3><span class="spotBadge">25</span></h3></div>
-            <div class="column dropzone spotCol" id="SPOT-26"><h3><span class="spotBadge">26</span></h3></div>
+        <div class="column" style="flex: 1;">
+          <h3>🚗 Spots</h3>
+          <div class="spotsGrid">
+            <div class="spotCol dropzone" id="SPOT-21">
+              <div class="spotHeader"><span class="spotBadge">21</span></div>
+            </div>
+            <div class="spotCol dropzone" id="SPOT-22">
+              <div class="spotHeader"><span class="spotBadge">22</span></div>
+            </div>
+            <div class="spotCol dropzone" id="SPOT-23">
+              <div class="spotHeader"><span class="spotBadge">23</span></div>
+            </div>
+            <div class="spotCol dropzone" id="SPOT-24">
+              <div class="spotHeader"><span class="spotBadge">24</span></div>
+            </div>
+            <div class="spotCol dropzone" id="SPOT-25">
+              <div class="spotHeader"><span class="spotBadge">25</span></div>
+            </div>
+            <div class="spotCol dropzone" id="SPOT-26">
+              <div class="spotHeader"><span class="spotBadge">26</span></div>
+            </div>
           </div>
-          <div style="color:#64748b; font-size:0.85em; margin-top:8px;">
-            Tip: If a spot already has a student, dropping a new name on it will automatically swap them.
+          <div style="color:#64748b; font-size:0.82em; margin-top:8px;">
+            Tip: Drag name back to Waiting to clear a spot.
           </div>
         </div>
       </div>
@@ -182,9 +254,6 @@
   </div>
 
   <script>
-  /***********************
-   * CONFIG
-   ***********************/
   const msalConfig = {
     auth: {
       clientId: "9fa63e7d-529b-4b31-aeba-240de53122e9",
@@ -200,9 +269,6 @@
   const pickupListName = "Parent Pickup Board";
   const parkingSpots = ["21","22","23","24","25","26"];
 
-  /***********************
-   * AUTH + STATE
-   ***********************/
   const msalInstance = new msal.PublicClientApplication(msalConfig);
   const accounts = msalInstance.getAllAccounts();
   if (accounts.length > 0) msalInstance.setActiveAccount(accounts[0]);
@@ -233,9 +299,6 @@
     overlay.style.display = show ? "flex" : "none";
   }
 
-  /***********************
-   * SIGN IN
-   ***********************/
   async function signIn() {
     try {
       const loginResponse = await msalInstance.loginPopup({
@@ -253,9 +316,7 @@
 
       accessToken = tokenResponse.accessToken;
 
-      // ✅ Hide sign-in button after login
       signInBtn.style.display = "none";
-
       enableSoundButton.style.display = "inline-block";
       resetButton.style.display = "inline-block";
 
@@ -269,9 +330,6 @@
     }
   }
 
-  /***********************
-   * LOAD DATA
-   ***********************/
   async function loadBuses() {
     const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${busListName}')/items?$select=Id,Title,Status`;
     const res = await fetch(endpoint, {
@@ -294,12 +352,10 @@
         const newStatus = b.status;
         if (oldStatus && oldStatus !== newStatus) {
           if (newStatus === "Here") {
-            dingHere.pause(); dingHere.currentTime = 0;
-            dingHere.play().catch(()=>{});
+            dingHere.pause(); dingHere.currentTime = 0; dingHere.play().catch(()=>{});
           }
           if (newStatus === "On Deck") {
-            dingOnDeck.pause(); dingOnDeck.currentTime = 0;
-            dingOnDeck.play().catch(()=>{});
+            dingOnDeck.pause(); dingOnDeck.currentTime = 0; dingOnDeck.play().catch(()=>{});
           }
         }
       }
@@ -344,28 +400,22 @@
     }
   }
 
-  /***********************
-   * RENDER HELPERS
-   ***********************/
-  function clearColumn(col) {
-    col.querySelectorAll(".tile").forEach(x => x.remove());
+  function clearTiles(container) {
+    container.querySelectorAll(".tile").forEach(t => t.remove());
+    container.querySelectorAll(".spotEmpty").forEach(e => e.remove());
   }
 
-  /***********************
-   * RENDER: BUSES
-   ***********************/
   function renderBuses(buses, oldMap = {}) {
     const statuses = ["Not Here", "On Deck", "Here", "Gone"];
     for (const status of statuses) {
       const col = document.getElementById(status);
-      clearColumn(col);
+      clearTiles(col);
 
       buses.filter(b => b.status === status).forEach(bus => {
         const div = document.createElement("div");
         div.className = "tile bus";
         div.textContent = bus.name;
         div.draggable = true;
-
         div.dataset.type = "bus";
         div.dataset.id = bus.id;
 
@@ -386,26 +436,34 @@
     }
   }
 
-  /***********************
-   * RENDER: PICKUPS
-   ***********************/
   function renderPickups(students) {
-    clearColumn(document.getElementById("PP-Waiting"));
-    for (const s of parkingSpots) clearColumn(document.getElementById(`SPOT-${s}`));
+    const waitingCol = document.getElementById("PP-Waiting");
+    clearTiles(waitingCol);
 
-    // Waiting = anything not in a spot
+    // clear each spot container but keep header
+    for (const spot of parkingSpots) {
+      const spotCol = document.getElementById(`SPOT-${spot}`);
+      clearTiles(spotCol);
+    }
+
     const waiting = students
       .filter(s => !s.spot)
       .sort((a,b) => (a.name || "").localeCompare((b.name || ""), undefined, { sensitivity:"base" }));
 
-    for (const stu of waiting) {
-      document.getElementById("PP-Waiting").appendChild(makeStudentTile(stu));
-    }
+    waiting.forEach(stu => waitingCol.appendChild(makeStudentTile(stu)));
 
     for (const spot of parkingSpots) {
-      const col = document.getElementById(`SPOT-${spot}`);
+      const spotCol = document.getElementById(`SPOT-${spot}`);
       const occupant = students.find(s => String(s.spot) === String(spot));
-      if (occupant) col.appendChild(makeStudentTile(occupant));
+
+      if (occupant) {
+        spotCol.appendChild(makeStudentTile(occupant));
+      } else {
+        const empty = document.createElement("div");
+        empty.className = "spotEmpty";
+        empty.textContent = "Empty";
+        spotCol.appendChild(empty);
+      }
     }
   }
 
@@ -425,9 +483,6 @@
     return div;
   }
 
-  /***********************
-   * DROP ZONES
-   ***********************/
   function initDropZones() {
     document.querySelectorAll(".dropzone").forEach(col => {
       col.ondragover = e => e.preventDefault();
@@ -437,7 +492,6 @@
         let payload;
         try { payload = JSON.parse(e.dataTransfer.getData("text/plain")); }
         catch { return; }
-
         if (!payload || !payload.type) return;
 
         // BUS DROP
@@ -471,7 +525,7 @@
 
           const targetId = col.id;
 
-          // Drop into Waiting = clear spot
+          // to Waiting = clear spot
           if (targetId === "PP-Waiting") {
             stu.spot = null;
             renderPickups(pickupsState);
@@ -480,13 +534,11 @@
             return;
           }
 
-          // Drop into a spot column
+          // to spot = replace occupant
           if (targetId.startsWith("SPOT-")) {
             const spot = targetId.replace("SPOT-", "");
             if (!parkingSpots.includes(String(spot))) return;
 
-            // ✅ Replacement behavior:
-            // If spot occupied by someone else, bump them to Waiting automatically.
             const existing = pickupsState.find(x => String(x.spot) === String(spot) && String(x.id) !== String(stu.id));
             if (existing) {
               existing.spot = null;
@@ -494,7 +546,7 @@
             }
 
             stu.spot = String(spot);
-            stu.status = "Waiting"; // keep status consistent
+            stu.status = "Waiting";
             renderPickups(pickupsState);
 
             await updatePickupItem(stu.id, { Spot: String(spot), Status: "Waiting" });
@@ -506,9 +558,6 @@
     });
   }
 
-  /***********************
-   * SHAREPOINT PATCH
-   ***********************/
   async function updateBusItem(id, bodyObj) {
     const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${busListName}')/items(${id})`;
     const res = await fetch(endpoint, {
@@ -539,9 +588,6 @@
     if (!res.ok) console.error("Pickup update failed:", await res.text());
   }
 
-  /***********************
-   * RESET BUSES
-   ***********************/
   resetButton.addEventListener("click", async () => {
     if (!confirm("Reset all buses to 'Not Here'?")) return;
 
@@ -571,16 +617,13 @@
     }
   });
 
-  /***********************
-   * AUTO REFRESH
-   ***********************/
   setInterval(async () => {
     const account = msalInstance.getActiveAccount();
     if (account && accessToken) await refreshAll();
   }, 15000);
 
-  // init dropzones once
   initDropZones();
   </script>
 </body>
 </html>
+
