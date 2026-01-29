@@ -7,15 +7,24 @@
   <script src="https://alcdn.msauth.net/browser/2.37.0/js/msal-browser.min.js"></script>
   <style>
     body { font-family: system-ui, "Segoe UI", Arial; background:#f1f5f9; margin:20px; }
-    h1 { text-align:center; }
-    #board { display:flex; gap:16px; margin-top:12px; }
-    .column { flex:1; background:white; border-radius:10px; padding:12px; min-height:400px; box-shadow:0 1px 4px rgba(0,0,0,0.08); }
-    .column h2 { text-align:center; }
-    .bus { background:#e6f0ff; margin:6px; padding:10px; border-radius:8px; cursor:grab; transition:transform 0.1s ease; }
-    .bus.dragging { opacity:0.5; transform:scale(1.05); }
+    h1 { text-align:center; margin-bottom: 8px; }
+    h2 { margin: 18px 0 8px; }
+    .subhead { text-align:center; color:#475569; margin-bottom: 18px; }
+
+    .board { display:flex; gap:16px; margin-top:12px; align-items: flex-start; }
+    .column { flex:1; background:white; border-radius:10px; padding:12px; min-height:280px; box-shadow:0 1px 4px rgba(0,0,0,0.08); }
+    .column h3 { text-align:center; margin: 4px 0 10px; }
+
+    .tile { background:#e6f0ff; margin:6px; padding:10px; border-radius:8px; cursor:grab; transition:transform 0.1s ease; user-select:none; }
+    .tile.dragging { opacity:0.5; transform:scale(1.05); }
+
+    /* Parent pickup tiles slightly different */
+    .student { background:#fff7ed; }
+
     button { padding:8px 16px; border:none; border-radius:6px; background:#2563eb; color:white; cursor:pointer; }
     button:hover { background:#1e40af; }
-    #login { display:flex; justify-content:center; margin:20px; }
+
+    #login { display:flex; justify-content:center; margin:20px; gap: 10px; flex-wrap: wrap; }
     #enableSound { display:none; margin:10px auto; }
 
     #resetBoardBtn {
@@ -25,6 +34,19 @@
     }
     #resetBoardBtn:hover { background-color:#922b21; }
 
+    /* tighter columns for parking spots */
+    .spotsWrap { display:flex; gap:12px; flex-wrap: wrap; }
+    .spotCol { width: 180px; flex: 0 0 auto; min-height: 220px; }
+    .spotBadge {
+      display:inline-block;
+      font-weight:700;
+      padding:4px 10px;
+      border-radius:999px;
+      background:#e2e8f0;
+      color:#0f172a;
+    }
+
+    /* Loading overlay */
     #loadingOverlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -32,7 +54,7 @@
       display: none;
       align-items: center;
       justify-content: center;
-      font-size: 1.5em;
+      font-size: 1.2em;
       color: #2563eb;
       z-index: 1000;
     }
@@ -49,35 +71,71 @@
 
     @keyframes flash {
       0% { background-color: #fff59d; }
-      100% { background-color: #e6f0ff; }
+      100% { background-color: inherit; }
     }
-    .flash { animation: flash 1s ease; }
+    .flash { animation: flash 0.9s ease; }
   </style>
 </head>
 
 <body>
   <h1>Silent Bus Dashboard — Cupples (Live)</h1>
-  <div id="login"><button onclick="signIn()">Sign in with Microsoft</button></div>
-  <button id="enableSound">Enable Sound</button>
-  <button id="resetBoardBtn">🔄 Reset Board</button>
+  <div class="subhead">Buses + Parent Pickups (Parking Spots 21–26)</div>
 
-  <div id="board" style="display:none;">
-    <div class="column" id="Not Here"><h2>🚍 Not Here</h2></div>
-    <div class="column" id="On Deck"><h2>⌚ On Deck</h2></div>
-    <div class="column" id="Here"><h2>✅ Here</h2></div>
-    <div class="column" id="Gone"><h2>🏁 Gone</h2></div>
+  <div id="login">
+    <button onclick="signIn()">Sign in with Microsoft</button>
+    <button id="enableSound">Enable Sound</button>
+    <button id="resetBoardBtn">🔄 Reset Buses</button>
+  </div>
+
+  <!-- BUS BOARD -->
+  <h2>🚌 Bus Board</h2>
+  <div id="busBoard" class="board" style="display:none;">
+    <div class="column dropzone" id="Not Here"><h3>🚍 Not Here</h3></div>
+    <div class="column dropzone" id="On Deck"><h3>⌚ On Deck</h3></div>
+    <div class="column dropzone" id="Here"><h3>✅ Here</h3></div>
+    <div class="column dropzone" id="Gone"><h3>🏁 Gone</h3></div>
+  </div>
+
+  <!-- PARENT PICKUP BOARD -->
+  <h2>👨‍👩‍👧 Parent Pickup Board</h2>
+  <div id="pickupBoard" style="display:none;">
+    <div class="board">
+      <div class="column dropzone" id="PP-Waiting">
+        <h3>📋 Waiting</h3>
+      </div>
+
+      <div class="column dropzone" id="PP-Done">
+        <h3>✅ Done</h3>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <div style="font-weight:700; margin: 6px 0;">🚗 Parking Spots</div>
+      <div class="spotsWrap">
+        <div class="column dropzone spotCol" id="SPOT-21"><h3><span class="spotBadge">Spot 21</span></h3></div>
+        <div class="column dropzone spotCol" id="SPOT-22"><h3><span class="spotBadge">Spot 22</span></h3></div>
+        <div class="column dropzone spotCol" id="SPOT-23"><h3><span class="spotBadge">Spot 23</span></h3></div>
+        <div class="column dropzone spotCol" id="SPOT-24"><h3><span class="spotBadge">Spot 24</span></h3></div>
+        <div class="column dropzone spotCol" id="SPOT-25"><h3><span class="spotBadge">Spot 25</span></h3></div>
+        <div class="column dropzone spotCol" id="SPOT-26"><h3><span class="spotBadge">Spot 26</span></h3></div>
+      </div>
+    </div>
   </div>
 
   <!-- 🎵 Sounds -->
   <audio id="dingHere"   src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
   <audio id="dingOnDeck" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" preload="auto"></audio>
 
+  <!-- Loading overlay -->
   <div id="loadingOverlay">
     <div class="spinner"></div>
-    <span>Refreshing bus list…</span>
+    <span>Refreshing…</span>
   </div>
 
   <script>
+  /***********************
+   * CONFIG
+   ***********************/
   const msalConfig = {
     auth: {
       clientId: "9fa63e7d-529b-4b31-aeba-240de53122e9",
@@ -87,16 +145,32 @@
     cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false }
   };
 
+  const siteUrl = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
+
+  // Buses
+  const busListName = "Silent Bus Admin List";
+
+  // Parent pickups
+  const pickupListName = "Parent Pickup Board";
+  const parkingSpots = ["21","22","23","24","25","26"];
+
+  /***********************
+   * AUTH + GLOBAL STATE
+   ***********************/
   const msalInstance = new msal.PublicClientApplication(msalConfig);
   const accounts = msalInstance.getAllAccounts();
   if (accounts.length > 0) msalInstance.setActiveAccount(accounts[0]);
 
   let accessToken = null;
-  const siteUrl = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
-  const listName = "Silent Bus Admin List";
-  let previousStatuses = {};
-  let initialized = false;
   let soundEnabled = false;
+
+  // Current items
+  let busesState = [];
+  let pickupsState = [];
+
+  // For flash/sound comparisons
+  let prevBusStatuses = {};
+  let initializedBuses = false;
 
   const dingHere = document.getElementById("dingHere");
   const dingOnDeck = document.getElementById("dingOnDeck");
@@ -108,10 +182,15 @@
     enableSoundButton.style.display = "none";
   });
 
-  function showLoading(show) {
-    document.getElementById("loadingOverlay").style.display = show ? "flex" : "none";
+  function showLoading(show, text="Refreshing…") {
+    const overlay = document.getElementById("loadingOverlay");
+    overlay.querySelector("span").textContent = text;
+    overlay.style.display = show ? "flex" : "none";
   }
 
+  /***********************
+   * SIGN IN
+   ***********************/
   async function signIn() {
     try {
       const loginResponse = await msalInstance.loginPopup({
@@ -129,133 +208,301 @@
 
       accessToken = tokenResponse.accessToken;
 
-      document.getElementById("login").style.display = "none";
+      document.getElementById("login").style.display = "flex";
       enableSoundButton.style.display = "block";
-      document.getElementById("board").style.display = "flex";
       resetButton.style.display = "block";
+      document.getElementById("busBoard").style.display = "flex";
+      document.getElementById("pickupBoard").style.display = "block";
 
-      await loadListData();
+      await refreshAll();
     } catch (error) {
       console.error("Login error:", error);
       alert("Login failed. Open the console (F12) for details.");
     }
   }
 
-  async function loadListData() {
-    if (!accessToken) return;
+  /***********************
+   * LOAD DATA
+   ***********************/
+  async function loadBuses() {
+    const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${busListName}')/items?$select=Id,Title,Status`;
+    const res = await fetch(endpoint, {
+      headers: { "Authorization": `Bearer ${accessToken}`, "Accept": "application/json;odata=nometadata" }
+    });
+    if (!res.ok) throw new Error(`Bus list error: ${res.status}`);
+    const data = await res.json();
 
-    showLoading(true);
-    try {
-      const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id,Title,Status`;
-      const response = await fetch(endpoint, {
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Accept": "application/json;odata=nometadata"
-        }
-      });
+    const oldMap = { ...prevBusStatuses };
 
-      if (!response.ok) throw new Error(`SharePoint API error: ${response.status}`);
+    const buses = data.value.map(item => ({
+      id: item.Id,
+      name: item.Title,
+      status: item.Status || "Not Here"
+    }));
 
-      const data = await response.json();
-      const buses = data.value.map(item => ({
-        id: item.Id,
-        name: item.Title,
-        status: item.Status || "Not Here"
-      }));
-
-      const oldMap = { ...previousStatuses };
-
-      // ✅ Play sound when a bus changes to "Here" or "On Deck"
-      if (initialized && soundEnabled) {
-        for (const bus of buses) {
-          const oldStatus = oldMap[bus.id];
-          const newStatus = bus.status;
-
-          if (oldStatus && oldStatus !== newStatus) {
-            if (newStatus === "Here") {
-              dingHere.pause(); dingHere.currentTime = 0;
-              dingHere.play().catch(() => {});
-            }
-            if (newStatus === "On Deck") {
-              dingOnDeck.pause(); dingOnDeck.currentTime = 0;
-              dingOnDeck.play().catch(() => {});
-            }
+    // Sound on status changes
+    if (initializedBuses && soundEnabled) {
+      for (const b of buses) {
+        const oldStatus = oldMap[b.id];
+        const newStatus = b.status;
+        if (oldStatus && oldStatus !== newStatus) {
+          if (newStatus === "Here") {
+            dingHere.pause(); dingHere.currentTime = 0;
+            dingHere.play().catch(()=>{});
+          }
+          if (newStatus === "On Deck") {
+            dingOnDeck.pause(); dingOnDeck.currentTime = 0;
+            dingOnDeck.play().catch(()=>{});
           }
         }
       }
+    }
 
-      previousStatuses = {};
-      for (const bus of buses) previousStatuses[bus.id] = bus.status;
+    // Update map
+    prevBusStatuses = {};
+    for (const b of buses) prevBusStatuses[b.id] = b.status;
+    initializedBuses = true;
 
-      initialized = true;
-      render(buses, oldMap);
-    } catch (error) {
-      console.error("Error loading list data:", error);
+    busesState = buses;
+    renderBuses(buses, oldMap);
+  }
+
+  async function loadPickups() {
+    // We pull Modified so “recent changes” could be used later if you want
+    const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${pickupListName}')/items?$select=Id,Title,Status,Spot,Modified`;
+    const res = await fetch(endpoint, {
+      headers: { "Authorization": `Bearer ${accessToken}`, "Accept": "application/json;odata=nometadata" }
+    });
+    if (!res.ok) throw new Error(`Pickup list error: ${res.status}`);
+    const data = await res.json();
+
+    pickupsState = data.value.map(item => ({
+      id: item.Id,
+      name: item.Title,
+      status: item.Status || "Waiting",
+      spot: item.Spot || null,
+      modified: item.Modified ? new Date(item.Modified).getTime() : 0
+    }));
+
+    renderPickups(pickupsState);
+  }
+
+  async function refreshAll() {
+    if (!accessToken) return;
+    showLoading(true, "Refreshing boards…");
+    try {
+      await Promise.all([loadBuses(), loadPickups()]);
+    } catch (e) {
+      console.error(e);
     } finally {
       showLoading(false);
     }
   }
 
-  function render(buses, oldMap = {}) {
-    ["Not Here", "On Deck", "Here", "Gone"].forEach(status => {
+  /***********************
+   * RENDER: BUSES
+   ***********************/
+  function clearColumn(col) {
+    col.querySelectorAll(".tile").forEach(x => x.remove());
+  }
+
+  function renderBuses(buses, oldMap = {}) {
+    const statuses = ["Not Here", "On Deck", "Here", "Gone"];
+    for (const status of statuses) {
       const col = document.getElementById(status);
-      col.querySelectorAll(".bus").forEach(b => b.remove());
+      clearColumn(col);
 
       buses.filter(b => b.status === status).forEach(bus => {
         const div = document.createElement("div");
-        div.className = "bus";
+        div.className = "tile bus";
         div.textContent = bus.name;
         div.draggable = true;
+
+        // drag payload: type + id
+        div.dataset.type = "bus";
         div.dataset.id = bus.id;
 
         const oldStatus = oldMap[bus.id];
-        if (initialized && oldStatus && oldStatus !== bus.status) {
+        if (initializedBuses && oldStatus && oldStatus !== bus.status) {
           div.classList.add("flash");
           div.addEventListener("animationend", () => div.classList.remove("flash"));
         }
 
         div.addEventListener("dragstart", e => {
-          e.dataTransfer.setData("text/plain", bus.id);
+          e.dataTransfer.setData("text/plain", JSON.stringify({ type: "bus", id: bus.id }));
           div.classList.add("dragging");
         });
         div.addEventListener("dragend", () => div.classList.remove("dragging"));
 
         col.appendChild(div);
       });
-    });
+    }
+  }
 
-    document.querySelectorAll(".column").forEach(col => {
+  /***********************
+   * RENDER: PARENT PICKUPS
+   ***********************/
+  function renderPickups(students) {
+    // Clear waiting + done
+    clearColumn(document.getElementById("PP-Waiting"));
+    clearColumn(document.getElementById("PP-Done"));
+
+    // Clear each spot column
+    for (const s of parkingSpots) clearColumn(document.getElementById(`SPOT-${s}`));
+
+    // Waiting list = Status Waiting and no spot
+    const waiting = students
+      .filter(s => (s.status || "Waiting") === "Waiting" && !s.spot)
+      .sort((a,b) => (a.name || "").localeCompare((b.name || ""), undefined, { sensitivity:"base" }));
+
+    // Done list
+    const done = students
+      .filter(s => (s.status || "Waiting") === "Done")
+      .sort((a,b) => (b.modified || 0) - (a.modified || 0));
+
+    // Assigned to spots
+    const assigned = students.filter(s => !!s.spot);
+
+    // Render Waiting
+    for (const stu of waiting) {
+      document.getElementById("PP-Waiting").appendChild(makeStudentTile(stu));
+    }
+
+    // Render Done
+    for (const stu of done) {
+      document.getElementById("PP-Done").appendChild(makeStudentTile(stu));
+    }
+
+    // Render each spot
+    for (const spot of parkingSpots) {
+      const col = document.getElementById(`SPOT-${spot}`);
+      const inThisSpot = assigned
+        .filter(s => String(s.spot) === String(spot))
+        .sort((a,b) => (a.name || "").localeCompare((b.name || ""), undefined, { sensitivity:"base" }));
+
+      for (const stu of inThisSpot) col.appendChild(makeStudentTile(stu));
+    }
+  }
+
+  function makeStudentTile(stu) {
+    const div = document.createElement("div");
+    div.className = "tile student";
+    div.textContent = stu.name;
+    div.draggable = true;
+    div.dataset.type = "student";
+    div.dataset.id = stu.id;
+
+    div.addEventListener("dragstart", e => {
+      e.dataTransfer.setData("text/plain", JSON.stringify({ type: "student", id: stu.id }));
+      div.classList.add("dragging");
+    });
+    div.addEventListener("dragend", () => div.classList.remove("dragging"));
+    return div;
+  }
+
+  /***********************
+   * DROP HANDLING (BOTH BOARDS)
+   ***********************/
+  function initDropZones() {
+    document.querySelectorAll(".dropzone").forEach(col => {
       col.ondragover = e => e.preventDefault();
       col.ondrop = async e => {
         e.preventDefault();
-        const id = e.dataTransfer.getData("text/plain");
-        const bus = buses.find(b => b.id == id);
-        if (!bus) return;
 
-        if (bus.status === col.id) return;
-
-        bus.status = col.id;
-        render(buses, previousStatuses);
-
-        // Optional: play sound immediately on manual moves
-        if (soundEnabled && bus.status === "Here") {
-          dingHere.pause(); dingHere.currentTime = 0;
-          dingHere.play().catch(() => {});
+        let payload;
+        try {
+          payload = JSON.parse(e.dataTransfer.getData("text/plain"));
+        } catch {
+          return;
         }
-        if (soundEnabled && bus.status === "On Deck") {
-          dingOnDeck.pause(); dingOnDeck.currentTime = 0;
-          dingOnDeck.play().catch(() => {});
+        if (!payload || !payload.type) return;
+
+        // BUS DROP
+        if (payload.type === "bus") {
+          const bus = busesState.find(b => String(b.id) === String(payload.id));
+          if (!bus) return;
+
+          // Only allow dropping onto bus columns (Not Here / On Deck / Here / Gone)
+          const targetStatus = col.id;
+          if (!["Not Here","On Deck","Here","Gone"].includes(targetStatus)) return;
+          if (bus.status === targetStatus) return;
+
+          bus.status = targetStatus;
+          renderBuses(busesState, prevBusStatuses);
+
+          if (soundEnabled && targetStatus === "Here") {
+            dingHere.pause(); dingHere.currentTime = 0; dingHere.play().catch(()=>{});
+          }
+          if (soundEnabled && targetStatus === "On Deck") {
+            dingOnDeck.pause(); dingOnDeck.currentTime = 0; dingOnDeck.play().catch(()=>{});
+          }
+
+          await updateBusItem(bus.id, { Status: bus.status });
+          await refreshAll();
+          return;
         }
 
-        await updateListItem(bus);
-        await loadListData();
+        // STUDENT DROP
+        if (payload.type === "student") {
+          const stu = pickupsState.find(s => String(s.id) === String(payload.id));
+          if (!stu) return;
+
+          const targetId = col.id;
+
+          // Drop into Waiting
+          if (targetId === "PP-Waiting") {
+            // clear spot, set waiting
+            stu.spot = null;
+            stu.status = "Waiting";
+            renderPickups(pickupsState);
+            await updatePickupItem(stu.id, { Spot: null, Status: "Waiting" });
+            await refreshAll();
+            return;
+          }
+
+          // Drop into Done
+          if (targetId === "PP-Done") {
+            stu.spot = null;
+            stu.status = "Done";
+            renderPickups(pickupsState);
+            await updatePickupItem(stu.id, { Spot: null, Status: "Done" });
+            await refreshAll();
+            return;
+          }
+
+          // Drop into a specific spot column
+          if (targetId.startsWith("SPOT-")) {
+            const spot = targetId.replace("SPOT-", "");
+
+            // Only allow defined spots 21-26
+            if (!parkingSpots.includes(String(spot))) return;
+
+            // Enforce ONE student per spot
+            const existing = pickupsState.find(x => String(x.spot) === String(spot) && String(x.id) !== String(stu.id));
+            if (existing) {
+              alert(`Spot ${spot} is already occupied by "${existing.name}".\n\nMove that student out first, then try again.`);
+              return;
+            }
+
+            stu.spot = String(spot);
+            stu.status = "Waiting"; // stays waiting while assigned to a spot
+            renderPickups(pickupsState);
+
+            await updatePickupItem(stu.id, { Spot: String(spot), Status: "Waiting" });
+            await refreshAll();
+            return;
+          }
+        }
       };
     });
   }
 
-  async function updateListItem(bus) {
-    const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items(${bus.id})`;
-    const response = await fetch(endpoint, {
+  /***********************
+   * UPDATE SHAREPOINT ITEMS
+   ***********************/
+  async function updateBusItem(id, bodyObj) {
+    const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${busListName}')/items(${id})`;
+    const res = await fetch(endpoint, {
       method: "PATCH",
       headers: {
         "Authorization": `Bearer ${accessToken}`,
@@ -263,24 +510,36 @@
         "Content-Type": "application/json;odata=nometadata",
         "IF-MATCH": "*"
       },
-      body: JSON.stringify({ Status: bus.status })
+      body: JSON.stringify(bodyObj)
     });
-
-    if (!response.ok) console.error("Update failed:", await response.text());
+    if (!res.ok) console.error("Bus update failed:", await res.text());
   }
 
-  setInterval(async () => {
-    const account = msalInstance.getActiveAccount();
-    if (account && accessToken) await loadListData();
-  }, 15000);
+  async function updatePickupItem(id, bodyObj) {
+    const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${pickupListName}')/items(${id})`;
+    const res = await fetch(endpoint, {
+      method: "PATCH",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Accept": "application/json;odata=nometadata",
+        "Content-Type": "application/json;odata=nometadata",
+        "IF-MATCH": "*"
+      },
+      body: JSON.stringify(bodyObj)
+    });
+    if (!res.ok) console.error("Pickup update failed:", await res.text());
+  }
 
+  /***********************
+   * RESET BUSES
+   ***********************/
   resetButton.addEventListener("click", async () => {
-    if (!confirm("Are you sure you want to reset all buses to 'Not Here'?")) return;
+    if (!confirm("Reset all buses to 'Not Here'?")) return;
 
     try {
-      showLoading(true);
+      showLoading(true, "Resetting buses…");
 
-      const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items?$select=Id`;
+      const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${busListName}')/items?$select=Id`;
       const response = await fetch(endpoint, {
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -291,36 +550,32 @@
       if (!response.ok) throw new Error(`SharePoint API error: ${response.status}`);
 
       const data = await response.json();
-      const buses = data.value;
+      const items = data.value;
 
-      for (const bus of buses) {
-        const updateEndpoint = `${siteUrl}/_api/web/lists/GetByTitle('${listName}')/items(${bus.Id})`;
-        const updateResponse = await fetch(updateEndpoint, {
-          method: "PATCH",
-          headers: {
-            "Authorization": `Bearer ${accessToken}`,
-            "Accept": "application/json;odata=nometadata",
-            "Content-Type": "application/json;odata=nometadata",
-            "IF-MATCH": "*"
-          },
-          body: JSON.stringify({ Status: "Not Here" })
-        });
-
-        if (!updateResponse.ok) console.warn(`Failed to reset bus ${bus.Id}`);
+      for (const item of items) {
+        await updateBusItem(item.Id, { Status: "Not Here" });
       }
 
-      alert("✅ All buses have been reset to 'Not Here'.");
-      window.location.reload();
+      alert("✅ All buses reset to 'Not Here'.");
+      await refreshAll();
     } catch (error) {
-      console.error("Error resetting board:", error);
-      alert("❌ Something went wrong while resetting the board. Check console for details.");
+      console.error("Error resetting buses:", error);
+      alert("❌ Reset failed. Check console.");
     } finally {
       showLoading(false);
     }
   });
+
+  /***********************
+   * AUTO REFRESH
+   ***********************/
+  setInterval(async () => {
+    const account = msalInstance.getActiveAccount();
+    if (account && accessToken) await refreshAll();
+  }, 15000);
+
+  // Initialize drop zones immediately
+  initDropZones();
   </script>
 </body>
 </html>
-
-
-
