@@ -15,33 +15,23 @@
     button { padding:8px 14px; border:none; border-radius:8px; background:#2563eb; color:white; cursor:pointer; }
     button:hover { background:#1e40af; }
     #enableSound { display:none; }
+
     #resetBoardBtn { display:none; background:#c0392b; }
     #resetBoardBtn:hover { background:#922b21; }
 
+    /* ✅ New pickup reset button */
+    #resetPickupBtn { display:none; background:#b45309; }
+    #resetPickupBtn:hover { background:#92400e; }
+
     /* Layout: 2 panels in one row */
-    .topRow {
-      display:flex;
-      gap:14px;
-      align-items:flex-start;
-    }
+    .topRow { display:flex; gap:14px; align-items:flex-start; }
+    .panel { background:white; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,0.08); padding:10px; }
 
-    .panel {
-      background:white;
-      border-radius:12px;
-      box-shadow:0 1px 4px rgba(0,0,0,0.08);
-      padding:10px;
-    }
-
-    /* ✅ Adjusted sizes: bus wider, pickup smaller */
+    /* bus wider, pickup smaller */
     #busPanel { flex: 1 1 64%; min-width: 520px; }
     #pickupPanel { flex: 0 0 36%; min-width: 360px; }
 
-    .panelTitle {
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      margin: 2px 2px 10px;
-    }
+    .panelTitle { display:flex; justify-content:space-between; align-items:center; margin: 2px 2px 10px; }
     .panelTitle h2 { margin:0; font-size: 1.05em; }
     .panelHint { color:#64748b; font-size: 0.9em; }
 
@@ -73,7 +63,6 @@
 
     .bus { background:#e6f0ff; }
 
-    /* ✅ Student tiles slightly tighter */
     .student {
       background:#fff7ed;
       padding:8px 10px;
@@ -81,7 +70,7 @@
       font-size: 0.95em;
     }
 
-    /* ✅ Parking spots become a tight "single slot" */
+    /* Parking spots: tight "single slot" */
     .spotsGrid {
       display:grid;
       grid-template-columns: repeat(3, 1fr);
@@ -90,7 +79,7 @@
     }
 
     .spotCol {
-      min-height: 78px;          /* looks like one slot */
+      min-height: 78px;
       padding: 8px;
       border-radius: 12px;
       border: 1px solid #e2e8f0;
@@ -101,12 +90,7 @@
       justify-content: flex-start;
     }
 
-    .spotHeader {
-      width: 100%;
-      display:flex;
-      justify-content:center;
-      margin-bottom: 6px;
-    }
+    .spotHeader { width: 100%; display:flex; justify-content:center; margin-bottom: 6px; }
 
     .spotBadge {
       display:inline-block;
@@ -118,14 +102,8 @@
       font-size: 0.9em;
     }
 
-    /* ✅ Make occupant tile centered + no extra margins */
-    .spotCol .tile {
-      margin: 0;
-      width: 100%;
-      text-align: center;
-    }
+    .spotCol .tile { margin: 0; width: 100%; text-align: center; }
 
-    /* Optional: faint placeholder when empty */
     .spotEmpty {
       color:#94a3b8;
       font-size: 0.85em;
@@ -160,13 +138,9 @@
     }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-    @keyframes flash {
-      0% { background-color: #fff59d; }
-      100% { background-color: inherit; }
-    }
+    @keyframes flash { 0% { background-color: #fff59d; } 100% { background-color: inherit; } }
     .flash { animation: flash 0.9s ease; }
 
-    /* Small screens: stack panels */
     @media (max-width: 1100px) {
       .topRow { flex-direction: column; }
       #busPanel, #pickupPanel { flex: 1 1 auto; min-width: unset; }
@@ -183,6 +157,7 @@
     <button id="signInBtn" onclick="signIn()">Sign in with Microsoft</button>
     <button id="enableSound">Enable Sound</button>
     <button id="resetBoardBtn">🔄 Reset Buses</button>
+    <button id="resetPickupBtn">🔄 Reset Parent Pickup</button>
   </div>
 
   <div class="topRow">
@@ -216,24 +191,12 @@
         <div class="column" style="flex: 1;">
           <h3>🚗 Spots</h3>
           <div class="spotsGrid">
-            <div class="spotCol dropzone" id="SPOT-21">
-              <div class="spotHeader"><span class="spotBadge">21</span></div>
-            </div>
-            <div class="spotCol dropzone" id="SPOT-22">
-              <div class="spotHeader"><span class="spotBadge">22</span></div>
-            </div>
-            <div class="spotCol dropzone" id="SPOT-23">
-              <div class="spotHeader"><span class="spotBadge">23</span></div>
-            </div>
-            <div class="spotCol dropzone" id="SPOT-24">
-              <div class="spotHeader"><span class="spotBadge">24</span></div>
-            </div>
-            <div class="spotCol dropzone" id="SPOT-25">
-              <div class="spotHeader"><span class="spotBadge">25</span></div>
-            </div>
-            <div class="spotCol dropzone" id="SPOT-26">
-              <div class="spotHeader"><span class="spotBadge">26</span></div>
-            </div>
+            <div class="spotCol dropzone" id="SPOT-21"><div class="spotHeader"><span class="spotBadge">21</span></div></div>
+            <div class="spotCol dropzone" id="SPOT-22"><div class="spotHeader"><span class="spotBadge">22</span></div></div>
+            <div class="spotCol dropzone" id="SPOT-23"><div class="spotHeader"><span class="spotBadge">23</span></div></div>
+            <div class="spotCol dropzone" id="SPOT-24"><div class="spotHeader"><span class="spotBadge">24</span></div></div>
+            <div class="spotCol dropzone" id="SPOT-25"><div class="spotHeader"><span class="spotBadge">25</span></div></div>
+            <div class="spotCol dropzone" id="SPOT-26"><div class="spotHeader"><span class="spotBadge">26</span></div></div>
           </div>
           <div style="color:#64748b; font-size:0.82em; margin-top:8px;">
             Tip: Drag name back to Waiting to clear a spot.
@@ -264,7 +227,6 @@
   };
 
   const siteUrl = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
-
   const busListName = "Silent Bus Admin List";
   const pickupListName = "Parent Pickup Board";
   const parkingSpots = ["21","22","23","24","25","26"];
@@ -286,6 +248,7 @@
   const dingOnDeck = document.getElementById("dingOnDeck");
   const enableSoundButton = document.getElementById("enableSound");
   const resetButton = document.getElementById("resetBoardBtn");
+  const resetPickupBtn = document.getElementById("resetPickupBtn");
   const signInBtn = document.getElementById("signInBtn");
 
   enableSoundButton.addEventListener("click", () => {
@@ -319,6 +282,7 @@
       signInBtn.style.display = "none";
       enableSoundButton.style.display = "inline-block";
       resetButton.style.display = "inline-block";
+      resetPickupBtn.style.display = "inline-block";
 
       document.getElementById("busPanel").style.display = "block";
       document.getElementById("pickupPanel").style.display = "block";
@@ -351,12 +315,8 @@
         const oldStatus = oldMap[b.id];
         const newStatus = b.status;
         if (oldStatus && oldStatus !== newStatus) {
-          if (newStatus === "Here") {
-            dingHere.pause(); dingHere.currentTime = 0; dingHere.play().catch(()=>{});
-          }
-          if (newStatus === "On Deck") {
-            dingOnDeck.pause(); dingOnDeck.currentTime = 0; dingOnDeck.play().catch(()=>{});
-          }
+          if (newStatus === "Here") { dingHere.pause(); dingHere.currentTime = 0; dingHere.play().catch(()=>{}); }
+          if (newStatus === "On Deck") { dingOnDeck.pause(); dingOnDeck.currentTime = 0; dingOnDeck.play().catch(()=>{}); }
         }
       }
     }
@@ -439,12 +399,7 @@
   function renderPickups(students) {
     const waitingCol = document.getElementById("PP-Waiting");
     clearTiles(waitingCol);
-
-    // clear each spot container but keep header
-    for (const spot of parkingSpots) {
-      const spotCol = document.getElementById(`SPOT-${spot}`);
-      clearTiles(spotCol);
-    }
+    for (const spot of parkingSpots) clearTiles(document.getElementById(`SPOT-${spot}`));
 
     const waiting = students
       .filter(s => !s.spot)
@@ -455,7 +410,6 @@
     for (const spot of parkingSpots) {
       const spotCol = document.getElementById(`SPOT-${spot}`);
       const occupant = students.find(s => String(s.spot) === String(spot));
-
       if (occupant) {
         spotCol.appendChild(makeStudentTile(occupant));
       } else {
@@ -488,10 +442,8 @@
       col.ondragover = e => e.preventDefault();
       col.ondrop = async e => {
         e.preventDefault();
-
         let payload;
-        try { payload = JSON.parse(e.dataTransfer.getData("text/plain")); }
-        catch { return; }
+        try { payload = JSON.parse(e.dataTransfer.getData("text/plain")); } catch { return; }
         if (!payload || !payload.type) return;
 
         // BUS DROP
@@ -506,12 +458,8 @@
           bus.status = targetStatus;
           renderBuses(busesState, prevBusStatuses);
 
-          if (soundEnabled && targetStatus === "Here") {
-            dingHere.pause(); dingHere.currentTime = 0; dingHere.play().catch(()=>{});
-          }
-          if (soundEnabled && targetStatus === "On Deck") {
-            dingOnDeck.pause(); dingOnDeck.currentTime = 0; dingOnDeck.play().catch(()=>{});
-          }
+          if (soundEnabled && targetStatus === "Here") { dingHere.pause(); dingHere.currentTime = 0; dingHere.play().catch(()=>{}); }
+          if (soundEnabled && targetStatus === "On Deck") { dingOnDeck.pause(); dingOnDeck.currentTime = 0; dingOnDeck.play().catch(()=>{}); }
 
           await updateBusItem(bus.id, { Status: bus.status });
           await refreshAll();
@@ -588,25 +536,21 @@
     if (!res.ok) console.error("Pickup update failed:", await res.text());
   }
 
+  // ✅ Reset buses
   resetButton.addEventListener("click", async () => {
     if (!confirm("Reset all buses to 'Not Here'?")) return;
-
     try {
       showLoading(true, "Resetting buses…");
       const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${busListName}')/items?$select=Id`;
       const response = await fetch(endpoint, {
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Accept": "application/json;odata=nometadata"
-        }
+        headers: { "Authorization": `Bearer ${accessToken}`, "Accept": "application/json;odata=nometadata" }
       });
       if (!response.ok) throw new Error(`SharePoint API error: ${response.status}`);
-
       const data = await response.json();
+
       for (const item of data.value) {
         await updateBusItem(item.Id, { Status: "Not Here" });
       }
-
       alert("✅ All buses reset to 'Not Here'.");
       await refreshAll();
     } catch (error) {
@@ -617,6 +561,32 @@
     }
   });
 
+  // ✅ NEW: Reset parent pickup (clear all spots back to Waiting)
+  resetPickupBtn.addEventListener("click", async () => {
+    if (!confirm("Reset Parent Pickup? This will move ALL students back to Waiting.")) return;
+    try {
+      showLoading(true, "Resetting parent pickup…");
+      const endpoint = `${siteUrl}/_api/web/lists/GetByTitle('${pickupListName}')/items?$select=Id`;
+      const response = await fetch(endpoint, {
+        headers: { "Authorization": `Bearer ${accessToken}`, "Accept": "application/json;odata=nometadata" }
+      });
+      if (!response.ok) throw new Error(`SharePoint API error: ${response.status}`);
+      const data = await response.json();
+
+      for (const item of data.value) {
+        await updatePickupItem(item.Id, { Spot: null, Status: "Waiting" });
+      }
+      alert("✅ Parent Pickup reset: all students moved to Waiting.");
+      await refreshAll();
+    } catch (error) {
+      console.error("Error resetting parent pickup:", error);
+      alert("❌ Reset failed. Check console.");
+    } finally {
+      showLoading(false);
+    }
+  });
+
+  // Refresh every 15 sec
   setInterval(async () => {
     const account = msalInstance.getActiveAccount();
     if (account && accessToken) await refreshAll();
@@ -626,4 +596,3 @@
   </script>
 </body>
 </html>
-
