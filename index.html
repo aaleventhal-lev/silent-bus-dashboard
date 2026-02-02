@@ -48,6 +48,16 @@
     }
     .column h3 { text-align:center; margin: 2px 0 10px; font-size: 0.95em; }
 
+    /* ✅ FIXED HEIGHT FOR BUS COLUMNS (full screen minus header/controls) */
+    :root{
+      --top-ui-height: 170px; /* tweak if header/buttons change */
+    }
+    #busBoard .column{
+      height: calc(100vh - var(--top-ui-height));
+      min-height: 520px;
+      overflow-y: auto; /* ensures all buses are included */
+    }
+
     /* Tiles */
     .tile {
       margin:6px 0;
@@ -558,7 +568,7 @@
     }
   });
 
-  // ✅ NEW: Reset parent pickup (clear all spots back to Waiting)
+  // ✅ Reset parent pickup
   resetPickupBtn.addEventListener("click", async () => {
     if (!confirm("Reset Parent Pickup? This will move ALL students back to Waiting.")) return;
     try {
@@ -593,4 +603,3 @@
   </script>
 </body>
 </html>
-
