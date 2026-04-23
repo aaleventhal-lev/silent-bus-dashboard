@@ -373,7 +373,14 @@
       const col = document.getElementById(status);
       clearTiles(col);
 
-      buses.filter(b => b.status === status).forEach(bus => {
+      let busesForStatus = buses.filter(b => b.status === status);
+      if (status === "Not Here") {
+        busesForStatus.sort((a, b) =>
+          (a.name || "").localeCompare((b.name || ""), undefined, { sensitivity: "base" })
+        );
+      }
+
+busesForStatus.forEach(bus => {
         const div = document.createElement("div");
         div.className = "tile bus";
         div.textContent = bus.name;
