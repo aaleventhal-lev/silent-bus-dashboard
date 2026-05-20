@@ -156,7 +156,7 @@
 
 <body>
   <h1>Silent Bus Dashboard — Cupples (Live)</h1>
-  <div class="subhead">Buses + Parent Pickups (Parking Spots 21–26)</div>
+  <div class="subhead">Buses + Parent Pickups (Parking Spots 1-7)</div>
 
   <div id="topControls">
     <button id="signInBtn" onclick="signIn()">Sign in with Microsoft</button>
@@ -196,12 +196,13 @@
         <div class="column" style="flex: 1;">
           <h3>🚗 Spots</h3>
           <div class="spotsGrid">
-            <div class="spotCol dropzone" id="SPOT-21"><div class="spotHeader"><span class="spotBadge">21</span></div></div>
-            <div class="spotCol dropzone" id="SPOT-22"><div class="spotHeader"><span class="spotBadge">22</span></div></div>
-            <div class="spotCol dropzone" id="SPOT-23"><div class="spotHeader"><span class="spotBadge">23</span></div></div>
-            <div class="spotCol dropzone" id="SPOT-24"><div class="spotHeader"><span class="spotBadge">24</span></div></div>
-            <div class="spotCol dropzone" id="SPOT-25"><div class="spotHeader"><span class="spotBadge">25</span></div></div>
-            <div class="spotCol dropzone" id="SPOT-26"><div class="spotHeader"><span class="spotBadge">26</span></div></div>
+            <div class="spotCol dropzone" id="SPOT-1"><div class="spotHeader"><span class="spotBadge">1</span></div></div>
+            <div class="spotCol dropzone" id="SPOT-2"><div class="spotHeader"><span class="spotBadge">2</span></div></div>
+            <div class="spotCol dropzone" id="SPOT-3"><div class="spotHeader"><span class="spotBadge">3</span></div></div>
+            <div class="spotCol dropzone" id="SPOT-4"><div class="spotHeader"><span class="spotBadge">4</span></div></div>
+            <div class="spotCol dropzone" id="SPOT-5"><div class="spotHeader"><span class="spotBadge">5</span></div></div>
+            <div class="spotCol dropzone" id="SPOT-6"><div class="spotHeader"><span class="spotBadge">6</span></div></div>
+            <div class="spotCol dropzone" id="SPOT-7"><div class="spotHeader"><span class="spotBadge">7</span></div></div>
           </div>
         </div>
       </div>
@@ -231,7 +232,7 @@
   const siteUrl = "https://thewatsoninstitute.sharepoint.com/sites/EdCenterSewickleyStaffResourceHub";
   const busListName = "Cupples Silent Bus Admin List";
   const pickupListName = "Parent Pickup Board";
-  const parkingSpots = ["21","22","23","24","25","26"];
+  const parkingSpots = ["1","2","3","4","5","6","7"];
 
   const msalInstance = new msal.PublicClientApplication(msalConfig);
   const accounts = msalInstance.getAllAccounts();
